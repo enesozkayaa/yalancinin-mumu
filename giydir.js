@@ -120,7 +120,7 @@ const Giydir = (() => {
   function ayar() {
     let a = null;
     try { a = JSON.parse(localStorage.getItem(AYAR_ANAHTAR)); } catch (e) { /* yok */ }
-    return { ozelAcik: a?.ozelAcik ?? true, ozel: Array.isArray(a?.ozel) ? a.ozel : Object.keys(Motor.OZEL) };
+    return { ozelAcik: a?.ozelAcik ?? false, ozel: Array.isArray(a?.ozel) ? a.ozel : Object.keys(Motor.OZEL) };
   }
   function ayarKaydet(a) {
     try { localStorage.setItem(AYAR_ANAHTAR, JSON.stringify(a)); } catch (e) { /* yok */ }
