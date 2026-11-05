@@ -757,8 +757,8 @@ const Sahne = (() => {
         bakis.hedefYaw = -Math.sign(x) * Math.max(0, Math.abs(x) - 0.06) * 2.1;
         bakis.hedefPitch = -(y - 0.4) * 0.6;
       } else if (surukle) {
-        bakis.hedefYaw = surukle.yaw - ((e.clientX - surukle.x) / window.innerWidth) * 2.4;
-        bakis.hedefPitch = surukle.pitch - ((e.clientY - surukle.y) / window.innerHeight) * 1.0;
+        bakis.hedefYaw = surukle.yaw + ((e.clientX - surukle.x) / window.innerWidth) * 2.4;
+        bakis.hedefPitch = surukle.pitch + ((e.clientY - surukle.y) / window.innerHeight) * 1.0;
         bakis.hedefYaw = Math.max(-1.1, Math.min(1.1, bakis.hedefYaw));
         bakis.hedefPitch = Math.max(-0.45, Math.min(0.4, bakis.hedefPitch));
       }
