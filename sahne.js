@@ -18,7 +18,7 @@ const Sahne = (() => {
   let yigin, acikGrup, tabanca, tabancaIsik, flasIsigi;
   const animler = [];
   const bakis = { yaw: 0, pitch: 0, hedefYaw: 0, hedefPitch: 0 };
-  let titreme = 0, oldum = 0;
+  let titreme = 0, oldum = 0, olumSure = 0;
   let kartDoku = {}, sirtMalzeme;
   let etiketGuncelle = () => {};
 
@@ -454,6 +454,7 @@ const Sahne = (() => {
     yiginiTemizle();
     tabancaMasaya(true);
     oldum = 0;
+    olumSure = 0;
     titreme = 0;
   }
 
@@ -804,21 +805,27 @@ const Sahne = (() => {
     bakis.pitch += (bakis.hedefPitch - bakis.pitch) * h;
     // Dik telefon ekranında yandakiler de görünsün diye kamera biraz geride ve yukarıda
     const dik = kamera.aspect < 0.8;
-    const goz = koltukKonumu(bk, OTURMA + (dik ? 0.95 : 0.24), (dik ? 2.3 : 1.74) - oldum * 0.7);
+    // Ölünce: önce yere yığılır (oldum), 2.5 sn sonra hayalet gibi yükselip masayı izler (hayalet)
+    const hayalet = Math.min(1, Math.max(0, (olumSure - 2.5) / 2));
+    const dusus = oldum * (1 - hayalet);
+    const goz = koltukKonumu(bk, OTURMA + (dik ? 0.95 : 0.24) + hayalet * 0.8, (dik ? 2.3 : 1.74) - dusus * 0.7 + hayalet * 1.1);
     kamera.position.copy(goz);
     const yon = a0 + Math.PI + bakis.yaw;
-    const pitch = (dik ? -0.42 : -0.4) + bakis.pitch + oldum * 0.5;
+    const pitch = (dik ? -0.42 : -0.4) + bakis.pitch + dusus * 0.5 - hayalet * 0.3;
     kamera.rotation.set(0, 0, 0);
     kamera.rotation.order = 'YXZ';
     kamera.rotation.y = yon + Math.PI;
     kamera.rotation.x = pitch;
-    kamera.rotation.z = oldum * 0.6;
+    kamera.rotation.z = dusus * 0.6;
     if (titreme > 0) {
       kamera.position.x += (Math.random() - 0.5) * titreme * 0.15;
       kamera.position.y += (Math.random() - 0.5) * titreme * 0.15;
       titreme = Math.max(0, titreme - dt * 1.2);
     }
-    if (oldum > 0) oldum = Math.min(1, oldum + dt * 1.2);
+    if (oldum > 0) {
+      oldum = Math.min(1, oldum + dt * 1.2);
+      olumSure += dt;
+    }
     // Birinci şahısta tabanca kameraya bağlı: ekranın sağından şakağa
     if (tabanca.userData.bende) {
       tabanca.userData.bendeOran = Math.min(1, tabanca.userData.bendeOran + dt * 1.5);
