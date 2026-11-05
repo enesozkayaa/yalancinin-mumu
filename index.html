@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#2a170c">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>Yalancının Mumu</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="ikonlar/ikon-192.png">
+  <link rel="apple-touch-icon" href="ikonlar/ikon-192.png">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="sahne"></div>
+
+  <!-- Ana menü -->
+  <section id="menu">
+    <div class="kart">
+      <div class="baslikMum"><span class="alevCiz"></span></div>
+      <h1>Yalancının Mumu</h1>
+      <p class="alt">“Yalancının mumu yatsıya kadar yanar.”</p>
+      <label>Adın <input id="adim" maxlength="12" placeholder="Adını yaz" autocomplete="off"></label>
+      <h3>Karakterini seç</h3>
+      <div id="karakterler"></div>
+      <p id="karakterAciklama" class="aciklama"></p>
+      <button id="botlaBtn" class="buyuk">🤖 Botlarla oyna</button>
+      <div class="online">
+        <h3>👥 Arkadaşlarla oyna</h3>
+        <p class="not">Çok yakında: oda kurup arkadaşlarınla online oynayabileceksin.</p>
+      </div>
+      <details>
+        <summary>Nasıl oynanır?</summary>
+        <ul>
+          <li>Destede 6 <b>Papaz</b>, 6 <b>Kız</b>, 6 <b>As</b> ve 2 <b>Joker</b> var. Joker her kartın yerine geçer.</li>
+          <li>Her el başında herkese 5 kart dağıtılır ve bir <b>masa kartı</b> seçilir (ör. “Kız masası”).</li>
+          <li>Sıran gelince 1-3 kartı <b>kapalı</b> atarsın ve hepsi masa kartıymış gibi yaparsın. Yalan da söyleyebilirsin!</li>
+          <li>Sıradaki oyuncu ya kendi kartlarını atar ya da <b>“YALANCI!”</b> der. Kartlar açılır.</li>
+          <li>Kartların arasında masa kartı ya da joker olmayan varsa <b>atan</b>, hepsi doğruysa <b>suçlayan</b> tabancanın tetiğini çeker.</li>
+          <li>Tabancada 6 hazne, 1 mermi var. Her çekişte ihtimal artar: 1/6, 1/5, 1/4… Mermi gelenin <b>mumu söner</b>.</li>
+          <li>Elinde kart kalmayan sırada atlanır. Elinde kart olan bir tek sen kaldıysan “Yalancı!” demek zorundasın.</li>
+          <li>Mumu en son yanan kazanır.</li>
+        </ul>
+      </details>
+      <p class="not">Bilgisayarda fareyi oynatınca, telefonda ekranı sürükleyince kafanı çevirirsin. 👀</p>
+    </div>
+  </section>
+
+  <!-- Oyun ekranı -->
+  <section id="oyun" hidden>
+    <header id="ust">
+      <button id="menuBtn" title="Ana menü">☰</button>
+      <div id="masaKarti"></div>
+      <button id="sesBtn" title="Ses">🔊</button>
+    </header>
+    <div id="etiketler"></div>
+    <div id="mesaj"></div>
+    <div id="acilan" hidden></div>
+    <div id="alt">
+      <div id="benimBilgi"></div>
+      <div id="sureCubugu"><div></div></div>
+      <div id="el"></div>
+      <div id="dugmeler">
+        <button id="atBtn" disabled>🃏 Kart at</button>
+        <button id="yalanciBtn" disabled>🤥 YALANCI!</button>
+      </div>
+    </div>
+    <div id="olumPerdesi" hidden>
+      <h2>🕯️ Mumun söndü…</h2>
+      <p>Yalancının mumu yatsıya kadar yanarmış. Oyunu izlemeye devam edebilirsin.</p>
+      <button id="olumMenuBtn" class="ikinciBtn">🏠 Ana menü</button>
+    </div>
+    <div id="sonEkran" hidden>
+      <div class="kart">
+        <h2 id="sonBaslik"></h2>
+        <p id="sonYazi"></p>
+        <button id="tekrarBtn" class="buyuk">🔁 Tekrar oyna</button>
+        <button id="sonMenuBtn" class="ikinciBtn">🏠 Ana menü</button>
+      </div>
+    </div>
+  </section>
+
+  <script src="https://cdn.jsdelivr.net/npm/three@0.159.0/build/three.min.js"></script>
+  <script src="ses.js"></script>
+  <script src="motor.js"></script>
+  <script src="karakterler.js"></script>
+  <script src="sahne.js"></script>
+  <script src="oyun.js"></script>
+  <script>
+    if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js');
+  </script>
+</body>
+</html>

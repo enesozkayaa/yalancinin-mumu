@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<!--
+  Yalancının Mumu - uygulama simgesini çizer: koyu ahşap zemin, kovboy şapkalı yanan mum.
+  Adres sonuna ?boyut=512&pay=0.08 yazılır (pay: kenar boşluğu; "maskable" simgede daha büyük).
+  PNG'ye çevirmek için Edge görünmez modda ekran görüntüsü alır:
+    msedge --headless --hide-scrollbars --window-size=512,512 --screenshot=ikonlar/ikon-512.png "file:///.../araclar/ikon-ciz.html?boyut=512&pay=0.08"
+-->
+<html>
+<head>
+<meta charset="UTF-8">
+<style>html, body { margin: 0; background: #2a170c; overflow: hidden; } canvas { display: block; }</style>
+</head>
+<body>
+<script>
+  const ayar = new URLSearchParams(location.search);
+  const boyut = +(ayar.get('boyut') || 512);
+  const pay = +(ayar.get('pay') || 0.08);
+  const c = document.createElement('canvas');
+  c.width = c.height = boyut;
+  document.body.appendChild(c);
+  const g = c.getContext('2d');
+  g.scale(boyut / 512, boyut / 512);
+
+  // Arka plan: mum ışığıyla aydınlanan koyu ahşap
+  const arka = g.createRadialGradient(256, 210, 20, 256, 256, 400);
+  arka.addColorStop(0, '#a8642a');
+  arka.addColorStop(0.45, '#5a3016');
+  arka.addColorStop(1, '#1e0f06');
+  g.fillStyle = arka;
+  g.fillRect(0, 0, 512, 512);
+  g.strokeStyle = 'rgba(20,8,0,.35)';
+  g.lineWidth = 3;
+  for (let x = 64; x < 512; x += 64) { g.beginPath(); g.moveTo(x, 0); g.lineTo(x, 512); g.stroke(); }
+
+  g.save();
+  const k = 1 - pay;
+  g.translate(256, 256);
+  g.scale(k, k);
+  g.translate(-256, -256);
+
+  // Işık halesi
+  const hale = g.createRadialGradient(256, 170, 10, 256, 170, 200);
+  hale.addColorStop(0, 'rgba(255,200,90,.75)');
+  hale.addColorStop(1, 'rgba(255,160,40,0)');
+  g.fillStyle = hale;
+  g.fillRect(0, 0, 512, 512);
+
+  // Tabak
+  g.fillStyle = '#7a5a2a';
+  g.beginPath(); g.ellipse(256, 440, 120, 30, 0, 0, 7); g.fill();
+  g.fillStyle = '#b08a4a';
+  g.beginPath(); g.ellipse(256, 432, 110, 24, 0, 0, 7); g.fill();
+
+  // Mum gövdesi
+  const govde = g.createLinearGradient(196, 0, 316, 0);
+  govde.addColorStop(0, '#d8c8a0');
+  govde.addColorStop(0.45, '#fff8e8');
+  govde.addColorStop(1, '#c8b890');
+  g.fillStyle = govde;
+  g.beginPath(); g.roundRect(200, 250, 112, 185, 10); g.fill();
+  // erimiş damlalar
+  g.beginPath(); g.ellipse(220, 262, 10, 26, 0, 0, 7); g.fill();
+  g.beginPath(); g.ellipse(296, 258, 9, 18, 0, 0, 7); g.fill();
+
+  // Kovboy şapkası mumun üstünde (eğik)
+  g.save();
+  g.translate(256, 250);
+  g.rotate(-0.12);
+  g.fillStyle = '#6b3a1a';
+  g.beginPath(); g.ellipse(0, 0, 120, 24, 0, 0, 7); g.fill();
+  g.fillStyle = '#8a4e22';
+  g.beginPath();
+  g.moveTo(-58, -2); g.quadraticCurveTo(-64, -80, -30, -86); g.quadraticCurveTo(0, -70, 30, -86);
+  g.quadraticCurveTo(64, -80, 58, -2); g.closePath(); g.fill();
+  g.fillStyle = '#2a1408';
+  g.fillRect(-58, -26, 116, 16);
+  g.fillStyle = '#8a4e22';
+  g.beginPath(); g.moveTo(-120, 0); g.quadraticCurveTo(-130, -26, -104, -30); g.quadraticCurveTo(-90, -10, -60, -6); g.closePath(); g.fill();
+  g.beginPath(); g.moveTo(120, 0); g.quadraticCurveTo(130, -26, 104, -30); g.quadraticCurveTo(90, -10, 60, -6); g.closePath(); g.fill();
+  g.restore();
+
+  // Fitil ve alev (şapkanın tepesinden çıkar)
+  g.strokeStyle = '#222'; g.lineWidth = 6;
+  g.beginPath(); g.moveTo(262, 168); g.lineTo(264, 150); g.stroke();
+  g.shadowColor = '#ffb030'; g.shadowBlur = 40;
+  g.fillStyle = '#ff9a1a';
+  g.beginPath(); g.moveTo(264, 40); g.bezierCurveTo(300, 100, 300, 150, 264, 158); g.bezierCurveTo(228, 150, 228, 100, 264, 40); g.fill();
+  g.shadowBlur = 0;
+  g.fillStyle = '#fff2b0';
+  g.beginPath(); g.moveTo(264, 90); g.bezierCurveTo(284, 120, 282, 148, 264, 152); g.bezierCurveTo(246, 148, 244, 120, 264, 90); g.fill();
+  g.restore();
+</script>
+</body>
+</html>
