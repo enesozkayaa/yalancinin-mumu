@@ -502,7 +502,7 @@ const Sahne = (() => {
       noKoltuk[p.no] = koltuk;
       const kt = { no: p.no, koltuk };
       if (p.no !== ben) {
-        kt.k = Karakterler.yap(p.karakter);
+        kt.k = Karakterler.yap(p.karakter, { kiyafet: p.kiyafet });
         const pos = koltukKonumu(koltuk);
         kt.k.kok.position.copy(pos);
         kt.k.kok.rotation.y = koltukAcisi(koltuk) + Math.PI;
@@ -519,8 +519,9 @@ const Sahne = (() => {
     yiginiTemizle();
     efektleriTemizle();
     tabancaMasaya(true);
-    const benimKarakter = oyuncular.find(p => p.no === ben)?.karakter;
-    elim.children.forEach((m, i) => m.material.color.set(i < 2 ? Karakterler.elRengi(benimKarakter) : Karakterler.gomlekRengi(benimKarakter)));
+    const benimOyuncu = oyuncular.find(p => p.no === ben);
+    const benimKarakter = benimOyuncu?.karakter;
+    elim.children.forEach((m, i) => m.material.color.set(i < 2 ? Karakterler.elRengi(benimKarakter) : benimOyuncu?.kiyafet?.gomlek || Karakterler.gomlekRengi(benimKarakter)));
     gezginleriKur(oyuncular.map(p => p.karakter));
     oldum = 0;
     olumSure = 0;
@@ -1110,6 +1111,55 @@ const Sahne = (() => {
     efektler.splice(0).forEach(e => sahne.remove(e.s));
   }
 
+  // ---------- Domates (mumu sönenler atar) ----------
+  // kimden: atan oyuncu, hedef: vurulan oyuncu. Domates yay çizerek uçar, suratta ezilir.
+  function domatesAt(kimden, hedef, bana) {
+    const kaynak = koltuklar.find(k => k.no === kimden);
+    const kt = koltuklar.find(k => k.no === hedef);
+    if (!kaynak || !kt) return;
+    const bas = kaynak.k ? kaynak.k.kafa.getWorldPosition(V()).add(V(0, 0.1, 0)) : kamera.position.clone().add(V(0, -0.2, 0));
+    const d = new THREE.Group();
+    const top = new THREE.Mesh(new THREE.SphereGeometry(0.06, 14, 10), new THREE.MeshStandardMaterial({ color: 0xd8261c, roughness: 0.35 }));
+    top.scale.y = 0.85;
+    const sap = new THREE.Mesh(new THREE.ConeGeometry(0.03, 0.03, 6), new THREE.MeshStandardMaterial({ color: 0x2f6b2a }));
+    sap.position.y = 0.05;
+    d.add(top, sap);
+    sahne.add(d);
+    const hedefNokta = () => (kt.k ? kt.k.kafa.localToWorld(V(0, 0.02, 0.18)) : kamera.position.clone().add(kamera.getWorldDirection(V()).multiplyScalar(0.25)));
+    animEkle(0.7, p => {
+      const h = hedefNokta();
+      d.position.lerpVectors(bas, h, p);
+      d.position.y += Math.sin(Math.PI * p) * 0.7;
+      d.rotation.x += 0.3;
+      d.rotation.z += 0.2;
+    }, () => {
+      sahne.remove(d);
+      if (bana) return;   // ekrana yapışan domatesi oyun.js çizer
+      if (!kt.k) return;
+      // Suratta ezilmiş domates (birkaç saniye kalır, sonra kayıp düşer)
+      const ezik = new THREE.Mesh(new THREE.SphereGeometry(0.09, 14, 8), new THREE.MeshStandardMaterial({ color: 0xc81e14, roughness: 0.3, transparent: true, opacity: 0.95 }));
+      ezik.scale.set(1.2, 0.9, 0.25);
+      ezik.position.set((Math.random() - 0.5) * 0.08, 0.02, 0.17);
+      kt.k.kafa.add(ezik);
+      for (let i = 0; i < 8; i++) {
+        const c = new THREE.Mesh(new THREE.SphereGeometry(0.02, 6, 5), ezik.material);
+        const yon = V(Math.random() - 0.5, Math.random() * 0.6, Math.random() - 0.2).normalize();
+        const b0 = kt.k.kafa.localToWorld(V(0, 0, 0.2));
+        sahne.add(c);
+        animEkle(0.6, p => {
+          c.position.copy(b0).add(yon.clone().multiplyScalar(p * 0.4));
+          c.position.y -= p * p * 0.5;
+        }, () => sahne.remove(c));
+      }
+      Karakterler.tepki(kt.k, 'zipla', 1.2);
+      Karakterler.ifade(kt.k, 'kizgin', 3);
+      animEkle(5, p => {
+        ezik.position.y = 0.02 - Math.max(0, p - 0.6) * 0.3;
+        ezik.material.opacity = 0.95 * Math.min(1, (1 - p) * 3);
+      }, () => kt.k.kafa.remove(ezik));
+    });
+  }
+
   // ---------- Online / ses için ----------
   const kt_ = no => koltuklar.find(k => k.no === no)?.k;
   // Mikrofondan gelen ses seviyesi (0-1): ağzı oynatır
@@ -1152,7 +1202,7 @@ const Sahne = (() => {
   }
 
   return {
-    terle, sinekEkle, efektleriTemizle, konusmaSeviyesi, konus, ifade, bakisUygula, olumleriUygula,
+    domatesAt, terle, sinekEkle, efektleriTemizle, konusmaSeviyesi, konus, ifade, bakisUygula, olumleriUygula,
     baslat, kur, kartSayilari, kartAt, kartlariAc, yiginiTemizle, tabancaKaldir, tetikSonuc, mumSondur,
     bak, tepki, baktigim, ekranKonumu, kartResmi,
     set etiketGuncelle(f) { etiketGuncelle = f; },

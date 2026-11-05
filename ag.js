@@ -10,7 +10,8 @@
 // Mesajlar:
 //   misafir → ev: { tip: 'katil', ad, kimlik, karakter, surum }  { tip: 'eylem', ad, args }  { tip: 'sohbet', metin }
 //                 { tip: 'bakis', y, p }  { tip: 'tepki', e }  { tip: 'karakter', tur }  { tip: 'yer', hedef }
-//                 { tip: 'ses', acik }  { tip: 'nabiz' }
+//                 { tip: 'ses', acik }  { tip: 'domates', hedef }  { tip: 'nabiz' }
+//   ev → misafir (ek): { tip: 'domates', no, hedef }   lobi mesajında oda sahibinin oyun ayarı (özel kartlar) da gider
 //   ev → misafir: { tip: 'kabul', no, surum }  { tip: 'lobi', koltuklar }  { tip: 'red', neden }
 //                 { tip: 'basla', d }  { tip: 'olay', t, v, d }  { tip: 'sohbet', no, ad, metin }
 //                 { tip: 'bakis', no, y, p }  { tip: 'tepki', no, e }  { tip: 'sesListesi', liste }  { tip: 'nabiz' }
@@ -21,11 +22,12 @@
 const Uzak = {
   oyna: (no, ids) => Ag.eylem('oyna', [ids]),
   yalanci: () => Ag.eylem('yalanci', []),
+  ozelKullan: (no, tur) => Ag.eylem('ozel', [tur]),
 };
 
 const Ag = (() => {
   // Online kısmı her değiştiğinde 1 artır: eski sürümle gelen oyuncu odaya alınmaz
-  const SURUM = 1;
+  const SURUM = 2;
   const ODA_ONEKI = 'yalancinin-mumu-oda-';
   const KOD_HARFLERI = 'ABCDEFGHJKLMNPRSTUVYZ23456789';
   const KOD_UZUNLUK = 5;
@@ -139,7 +141,7 @@ const Ag = (() => {
       if (ag.mod === 'ev') return;
       ag.mod = 'ev';
       ag.kod = kod;
-      ag.koltuklar = [{ ad, kimlik, karakter: ui.karakter, misafir: null }, null, null, null];
+      ag.koltuklar = [{ ad, kimlik, karakter: ui.karakter, kiyafet: Giydir.kiyafet(ui.karakter), misafir: null }, null, null, null];
       ui.benimNo = 0;
       kilitle();
       odaKodunuGoster();
@@ -206,10 +208,13 @@ const Ag = (() => {
     lobiyiCiz();
   }
 
-  function karakterDegistir(no, tur) {
+  const kiyafetTemiz = k => (k && typeof k === 'object'
+    ? { sapka: String(k.sapka || ''), gomlek: String(k.gomlek || ''), yelek: String(k.yelek || ''), aksesuar: String(k.aksesuar || 'yok') } : {});
+  function karakterDegistir(no, tur, kiyafet) {
     if (ag.mod !== 'ev' || !ag.koltuklar[no] || !Karakterler.BILGI[tur]) return;
     if (ag.koltuklar.some((k, i) => k && i !== no && k.karakter === tur)) return;   // başkası almış
     ag.koltuklar[no].karakter = tur;
+    ag.koltuklar[no].kiyafet = kiyafetTemiz(kiyafet);
     if (!ag.basladi) lobiyiCiz();
   }
 
@@ -221,7 +226,7 @@ const Ag = (() => {
       + (kisi > 1 ? 'Herkes geldiyse “Oyunu başlat”a bas. Boş koltuklarda bot oynar.' : '⏳ Arkadaşların bekleniyor...'));
     $('baslatBtn').hidden = false;
     $('baslatBtn').disabled = kisi < 2;
-    herkese({ tip: 'lobi', koltuklar: liste });
+    herkese({ tip: 'lobi', koltuklar: liste, ayar: Giydir.motorAyari() });
     karakterleriKilitle(liste);
   }
 
@@ -245,6 +250,9 @@ const Ag = (() => {
     if (m?.tip === 'eylem' && ag.basladi && Array.isArray(m.args)) {
       if (m.ad === 'oyna') Motor.oyna(no, Array.isArray(m.args[0]) ? m.args[0] : []);
       else if (m.ad === 'yalanci') Motor.yalanci(no);
+      else if (m.ad === 'ozel') Motor.ozelKullan(no, String(m.args[0]));
+    } else if (m?.tip === 'domates' && ag.basladi) {
+      domatesDagit(no, +m.hedef);
     } else if (m?.tip === 'bakis') {
       const y = +m.y || 0, p = +m.p || 0;
       herkese({ tip: 'bakis', no, y, p }, no);
@@ -259,7 +267,7 @@ const Ag = (() => {
     } else if (m?.tip === 'yer') {
       yerDegistir(no, m.hedef);
     } else if (m?.tip === 'karakter') {
-      karakterDegistir(no, m.tur);
+      karakterDegistir(no, m.tur, m.kiyafet);
     }
   }
 
@@ -283,7 +291,7 @@ const Ag = (() => {
         return;
       }
       const istenen = Karakterler.BILGI[m.karakter] && !kullanilan().includes(m.karakter) ? m.karakter : bosKarakter();
-      ag.koltuklar[no] = { ad, kimlik: m.kimlik, karakter: istenen, misafir: null };
+      ag.koltuklar[no] = { ad, kimlik: m.kimlik, karakter: istenen, kiyafet: istenen === m.karakter ? kiyafetTemiz(m.kiyafet) : {}, misafir: null };
     }
     const eski = ag.koltuklar[no].misafir;
     if (eski && eski !== misafir) eski.baglanti.close();
@@ -332,7 +340,7 @@ const Ag = (() => {
     // Boş koltuklara, kimsenin seçmediği karakterlerle bot oturur
     const bos = Karakterler.TURLER.filter(t => !kullanilan().includes(t)).sort(() => Math.random() - 0.5);
     const oyuncular = ag.koltuklar.map(k => {
-      if (k) return { ad: k.ad, karakter: k.karakter, bot: false };
+      if (k) return { ad: k.ad, karakter: k.karakter, kiyafet: k.kiyafet, bot: false };
       const t = bos.shift();
       return { ad: Karakterler.BILGI[t].ad, karakter: t, bot: true };
     });
@@ -341,7 +349,7 @@ const Ag = (() => {
     Motor.yeni(oyuncular, (t, v) => {
       olayGeldi(t, v);
       olayYay(t, v);
-    });
+    }, Giydir.motorAyari());
     oyuncular.forEach((p, no) => { if (p.bot && ag.koltuklar[no]) Motor.botYap(no, true); });
     misafirler().forEach(({ k, no }) => gonder(k.misafir, { tip: 'basla', d: gorunum(no) }));
     oyunEkraniniKur(Motor.gorunum(0), 0);
@@ -385,7 +393,7 @@ const Ag = (() => {
       baglanti.on('open', () => {
         ag.baglanti = baglanti;
         ag.mod = 'misafir';
-        baglanti.send({ tip: 'katil', ad, kimlik, karakter: ui.karakter, surum: SURUM });
+        baglanti.send({ tip: 'katil', ad, kimlik, karakter: ui.karakter, kiyafet: Giydir.kiyafet(ui.karakter), surum: SURUM });
         nabziBaslat();
       });
       baglanti.on('data', m => {
@@ -438,6 +446,7 @@ const Ag = (() => {
       }
       durumYaz('✅ Odaya bağlandın! Oyunu oda sahibi başlatacak, bekle...' + lobiListesi(m.koltuklar, ui.benimNo));
       karakterleriKilitle(m.koltuklar);
+      if (m.ayar && Array.isArray(m.ayar.ozel)) Giydir.ayarlariCiz(true, m.ayar);
     } else if (m?.tip === 'red') {
       ag.baglanti = null;
       ag.mod = 'yerel';
@@ -453,6 +462,8 @@ const Ag = (() => {
       bakisGeldi(m.no, +m.y || 0, +m.p || 0);
     } else if (m?.tip === 'tepki') {
       tepkiGoster(m.no, m.e);
+    } else if (m?.tip === 'domates') {
+      domatesGoster(+m.no, +m.hedef);
     } else if (m?.tip === 'sohbet') {
       sohbetGeldi(m.no, m.ad, m.metin);
     } else if (m?.tip === 'sesListesi' && Array.isArray(m.liste)) {
@@ -517,6 +528,20 @@ const Ag = (() => {
   function tepkiDagit(no, e) {
     herkese({ tip: 'tepki', no, e });
     tepkiGoster(no, e);
+  }
+
+  // ---------- Domates ----------
+  // Sadece mumu sönmüş oyuncu, yaşayan birine atabilir (oda sahibi kontrol eder)
+  function domatesDagit(no, hedef) {
+    const d = Motor.gorunum(0);
+    if (!d || d.oyuncular[no]?.canli !== false || !d.oyuncular[hedef]?.canli) return;
+    herkese({ tip: 'domates', no, hedef });
+    domatesGoster(no, hedef);
+  }
+  function domatesGonder(hedef) {
+    if (ag.mod === 'misafir') {
+      if (ag.baglanti?.open) ag.baglanti.send({ tip: 'domates', hedef });
+    } else domatesDagit(ui.benimNo, hedef);
   }
 
   // ---------- Sohbet ----------
@@ -731,11 +756,16 @@ const Ag = (() => {
   } catch (e) { /* düğme görünmez */ }
 
   return {
-    eylem, ayril, sesteMi, bakisGonder, tepkiGonder, oyunuBaslat,
-    // Menüde karakter değişince odadakiler de görsün
+    eylem, ayril, sesteMi, bakisGonder, tepkiGonder, oyunuBaslat, domatesGonder, domatesDagit,
+    // Menüde karakter ya da kıyafet değişince odadakiler de görsün
     karakterSec(tur) {
-      if (ag.mod === 'ev') karakterDegistir(0, tur);
-      else if (ag.mod === 'misafir' && ag.baglanti?.open) ag.baglanti.send({ tip: 'karakter', tur });
+      const kiyafet = Giydir.kiyafet(tur);
+      if (ag.mod === 'ev') karakterDegistir(0, tur, kiyafet);
+      else if (ag.mod === 'misafir' && ag.baglanti?.open) ag.baglanti.send({ tip: 'karakter', tur, kiyafet });
+    },
+    // Oda sahibi ayarları değiştirince bekleme odasındakiler görsün
+    lobiGuncelle() {
+      if (ag.mod === 'ev' && !ag.basladi) lobiyiCiz();
     },
     get mod() { return ag.mod; },
     get basladi() { return ag.basladi; },

@@ -26,6 +26,16 @@
       <h3>Karakterini seç</h3>
       <div id="karakterler"></div>
       <p id="karakterAciklama" class="aciklama"></p>
+      <div class="menuDugmeleri">
+        <button id="giydirBtn" class="ikinciBtn">🎨 Karakterini giydir</button>
+        <button id="istatistikBtn" class="ikinciBtn">📊 İstatistik ve rozetler</button>
+      </div>
+      <details class="ayarlar" open>
+        <summary>⚙️ Oyun ayarları</summary>
+        <label class="kutucuk"><input type="checkbox" id="ozelAcik"> <b>Özel kartlar</b> <small>(her el birine bir özel kart gelir)</small></label>
+        <div id="ozelListe"></div>
+        <p id="ayarNotu" class="not"></p>
+      </details>
       <button id="botlaBtn" class="buyuk">🤖 Botlarla oyna</button>
       <div class="online">
         <h3>👥 Arkadaşlarla oyna</h3>
@@ -77,25 +87,51 @@
       <div id="benimBilgi"></div>
       <div id="sureCubugu"><div></div></div>
       <div id="el"></div>
+      <div id="ozelKartlarim" hidden></div>
       <div id="tepkiler"><button>😂</button><button>😡</button><button>😱</button><button>🤥</button><button>🤠</button></div>
       <div id="dugmeler">
         <button id="atBtn" disabled>🃏 Kart at</button>
         <button id="yalanciBtn" disabled>🤥 YALANCI!</button>
       </div>
     </div>
+    <div id="domatesCubugu" hidden></div>
+    <div id="durbunKart" hidden></div>
+    <div id="ekranDomates"></div>
     <div id="olumPerdesi" hidden>
       <h2>🕯️ Mumun söndü…</h2>
-      <p>Yalancının mumu yatsıya kadar yanarmış. Oyunu izlemeye devam edebilirsin.</p>
+      <p>Yalancının mumu yatsıya kadar yanarmış. Oyunu izlemeye devam edebilirsin; aşağıdan yaşayanlara 🍅 domates atabilirsin!</p>
       <button id="olumMenuBtn" class="ikinciBtn">🏠 Ana menü</button>
     </div>
     <div id="sonEkran" hidden>
       <div class="kart">
         <h2 id="sonBaslik"></h2>
         <p id="sonYazi"></p>
+        <div id="oduller"></div>
+        <div id="yeniRozet"></div>
         <button id="tekrarBtn" class="buyuk">🔁 Tekrar oyna</button>
         <p id="sonBekle" class="not" hidden>⏳ Oda sahibi yeni oyunu başlatınca masaya otomatik döneceksin.</p>
         <button id="sonMenuBtn" class="ikinciBtn">🏠 Ana menü</button>
       </div>
+    </div>
+  </section>
+
+  <!-- Karakter giydirme -->
+  <section id="giydirPaneli" class="perde" hidden>
+    <div class="kart">
+      <h2 id="giydirBaslik">🎨 Giydir</h2>
+      <div id="giydirOnizleme"></div>
+      <div id="giydirSecenekler"></div>
+      <button id="giydirSifirla" class="ikinciBtn">↩️ Varsayılan kıyafet</button>
+      <button id="giydirKapat" class="buyuk">✅ Tamam</button>
+    </div>
+  </section>
+
+  <!-- İstatistik ve rozetler -->
+  <section id="istatistikPaneli" class="perde" hidden>
+    <div class="kart">
+      <h2>📊 İstatistiklerin</h2>
+      <div id="istatistikIcerik"></div>
+      <button id="istatistikKapat" class="ikinciBtn">Kapat</button>
     </div>
   </section>
 
@@ -126,6 +162,8 @@
   <script src="karakterler.js"></script>
   <script src="sahne.js"></script>
   <script src="oyun.js"></script>
+  <script src="giydir.js"></script>
+  <script src="istatistik.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
   <script src="ag.js"></script>
   <script src="sayac.js"></script>

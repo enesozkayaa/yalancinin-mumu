@@ -67,11 +67,12 @@ function botlaBasla() {
   const ad = $('adim').value.trim() || 'Sen';
   kayitYaz(ANAHTAR_AD, $('adim').value.trim());
   const kalan = Karakterler.TURLER.filter(t => t !== ui.karakter).sort(() => Math.random() - 0.5);
-  const oyuncular = [{ ad, karakter: ui.karakter, bot: false }];
+  const oyuncular = [{ ad, karakter: ui.karakter, bot: false, kiyafet: Giydir.kiyafet(ui.karakter) }];
   for (let i = 0; i < 3; i++) oyuncular.push({ ad: Karakterler.BILGI[kalan[i]].ad, karakter: kalan[i], bot: true });
   ui.son = oyuncular;
+  ui.sonAyar = Giydir.motorAyari();
   Masa = Motor;
-  Motor.yeni(oyuncular, olayGeldi);
+  Motor.yeni(oyuncular, olayGeldi, ui.sonAyar);
   oyunEkraniniKur(Motor.gorunum(0), 0);
 }
 
@@ -201,11 +202,82 @@ function olayGeldi(tip, v, d) {
       if (p(v.no).bot) setTimeout(() => balon(v.no, sec(SOZLER.kurtuldu, v.r)), 500);
       d.oyuncular.filter(x => x.canli && x.bot && x.no !== v.no).forEach(x => v.r < 0.4 && Sahne.tepki(x.no, 'gul', 1.2));
     }
+  } else if (tip === 'ozelGeldi') {
+    if (v.no === ui.benimNo) {
+      const t = d.oyuncular[ui.benimNo].ozel?.at(-1);
+      const k = Motor.OZEL[t];
+      if (k) mesaj(`🎴 Özel kart geldi: ${k.emoji} ${k.ad}!`, '', 2600);
+      Ses.siraSende();
+    } else balon(v.no, '🎴 Özel kart aldım!');
+  } else if (tip === 'ozelKullandi') {
+    const k = Motor.OZEL[v.tur];
+    const kim = v.no === ui.benimNo ? 'Sen' : adi(v.no);
+    Ses.kartAc(1);
+    if (v.tur === 'durbun') {
+      const db = d.oyuncular[ui.benimNo].durbun;
+      if (v.no === ui.benimNo && db) {
+        mesaj(`👀 Dürbün: ${adi(db.sonNo)}'in attığı ${db.adet} karttan biri ${Motor.AD[db.tur].toLocaleUpperCase('tr')}`, db.tur === 'J' || db.tur === d.masaKarti ? '' : 'kirmizi', 4000);
+        $('durbunKart').innerHTML = `<img src="${Sahne.kartResmi(db.tur)}" alt=""><small>👀 ${guvenli(adi(db.sonNo))}'in kartı</small>`;
+        $('durbunKart').hidden = false;
+      } else {
+        balon(v.no, '👀 Dürbünle bakıyorum…');
+        Sahne.ifade(v.no, 'supheli', 3);
+      }
+    } else {
+      mesaj(`${kim} ${k.emoji} ${k.ad} kullandı!${v.tur === 'ters' ? ' Sıra artık ters yönde.' : v.tur === 'pas' ? ' Sırayı geçti.' : v.tur === 'viski' ? ' Tabancası sıfırlandı.' : ''}`, '', 2600);
+      if (v.no !== ui.benimNo) {
+        balon(v.no, `${k.emoji} ${k.ad}!`);
+        Sahne.tepki(v.no, v.tur === 'viski' ? 'rahat' : 'salla', 1.4);
+      }
+    }
+  } else if (tip === 'yelek') {
+    Ses.tik();
+    Ses.dogruCikti();
+    mesaj(v.no === ui.benimNo ? '🛡️ Çelik yeleğin seni kurtardı!' : `🛡️ Çelik yelek! ${adi(v.no)} tetiği çekmekten kurtuldu`, 'iri', 2600);
+    Sahne.tepki(v.no, 'gul', 1.6);
+    $('acilan').hidden = true;
   } else if (tip === 'bitti') {
-    setTimeout(() => sonuGoster(v.kazanan), 1200);
+    setTimeout(() => sonuGoster(v.kazanan, v.istat), 1200);
   }
+  if (tip === 'el' || tip === 'oynadi') $('durbunKart').hidden = true;
   ciz();
 }
+
+// ---------- Domates (mumu sönenler atar) ----------
+let sonDomates = 0;
+function domatesFirlat(hedef) {
+  if (Date.now() - sonDomates < 2000) return;
+  sonDomates = Date.now();
+  Ag.domatesGonder(hedef);
+  const yeni = Istatistik.domatesAtildi();
+  yeni.forEach(r => setTimeout(() => mesaj(`🏅 Yeni rozet: ${r.emoji} ${r.ad}`, 'iri', 3000), 900));
+}
+function domatesGoster(kimden, hedef) {
+  if (!ui.durum) return;
+  const bana = hedef === ui.benimNo;
+  Sahne.domatesAt(kimden, hedef, bana);
+  Ses.domates();
+  if (bana) {
+    setTimeout(() => {
+      const e = $('ekranDomates');
+      e.style.left = `${20 + Math.random() * 50}%`;
+      e.style.top = `${15 + Math.random() * 40}%`;
+      e.classList.remove('goster');
+      void e.offsetWidth;
+      e.classList.add('goster');
+    }, 700);
+    setTimeout(() => mesaj(`🍅 ${adi(kimden)} sana domates attı!`, '', 2000), 750);
+  }
+}
+// Mumu sönmüş botlar ara sıra yaşayanlara domates atar (tek başına ya da oda sahibiyken)
+setInterval(() => {
+  const d = ui.durum;
+  if (!d || d.asama === 'bitti' || $('oyun').hidden || Masa !== Motor) return;
+  const yasayan = d.oyuncular.filter(p => p.canli);
+  d.oyuncular.filter(p => !p.canli && p.bot).forEach(p => {
+    if (Math.random() < 0.1 && yasayan.length) Ag.domatesDagit(p.no, yasayan[Math.floor(Math.random() * yasayan.length)].no);
+  });
+}, 4000);
 
 // Botların bakışları: sıradakine bakarlar, sıradaki bot kartlarına bakar.
 // Ben bir bota bir süre bakarsam o da bana bakar. (İnsan oyuncuların kafası kendi ekranlarından gelir.)
@@ -253,7 +325,8 @@ function ciz() {
     e.el.classList.toggle('olu', !p.canli);
     const ses = online() && Ag.sesteMi(p.no) ? ' 🎙️' : '';
     const bot = p.yedekBot ? ' · 🤖 bot oynuyor' : '';
-    e.bilgi.textContent = p.canli ? `🃏 ${p.kartSayisi} · 🔫 ${p.tetik}/6${bot}${ses}` : '🕯️ mumu söndü';
+    const ozel = p.ozelSayisi ? ` · 🎴${p.ozelSayisi}` : '';
+    e.bilgi.textContent = p.canli ? `🃏 ${p.kartSayisi} · 🔫 ${p.tetik}/6${ozel}${bot}${ses}` : '🕯️ mumu söndü';
   });
   const ben = d.oyuncular[ui.benimNo];
   const sirada = d.asama === 'oyun' && d.sira === ui.benimNo && ben.canli;
@@ -266,6 +339,23 @@ function ciz() {
   $('atBtn').textContent = n ? `🃏 ${n} ${masaAdi(d.masaKarti)} at` : '🃏 Kart seç';
   $('yalanciBtn').disabled = !sirada || d.sonNo < 0;
   $('alt').style.visibility = ben.canli ? '' : 'hidden';
+  // Özel kartlarım
+  const ozel = ben.ozel || [];
+  $('ozelKartlarim').innerHTML = ozel.map((t, i) => {
+    const k = Motor.OZEL[t];
+    const kullanilir = sirada && t !== 'yelek'
+      && (t !== 'durbun' || (d.sonNo >= 0 && d.sonNo !== ui.benimNo && !ben.durbun))
+      && (t !== 'viski' || ben.tetik > 0) && (t !== 'pas' || !d.zorunlu);
+    return `<button class="ozelKart" data-tur="${t}" ${kullanilir ? '' : 'disabled'} title="${k.aciklama}">${k.emoji}<small>${t === 'yelek' ? 'Yelek (otomatik)' : k.ad}</small></button>`;
+  }).join('');
+  $('ozelKartlarim').hidden = !ozel.length;
+  // Mumu söndüyse: domates at
+  const domatesVar = !ben.canli && d.asama !== 'bitti';
+  $('domatesCubugu').hidden = !domatesVar;
+  if (domatesVar) {
+    $('domatesCubugu').innerHTML = '<span>🍅 Domates at:</span>' + d.oyuncular.filter(p => p.canli)
+      .map(p => `<button data-no="${p.no}">${Karakterler.BILGI[p.karakter].emoji} ${guvenli(p.ad)}</button>`).join('');
+  }
 }
 
 function elCiz(yeni) {
@@ -363,8 +453,15 @@ function acilanGoster(turler, v) {
   a.hidden = false;
 }
 
-function sonuGoster(kazanan) {
+function sonuGoster(kazanan, istat) {
   const d = ui.durum;
+  $('domatesCubugu').hidden = true;
+  if (istat) {
+    const oduller = Istatistik.oduller(istat, (d.ozelAyar || []).length > 0);
+    $('oduller').innerHTML = oduller.map(o => `<div class="odul"><span>${o.emoji}</span><div><b>${o.ad}: ${guvenli(o.kim)}</b><small>${o.aciklama}</small></div></div>`).join('');
+    const yeni = Istatistik.oyunBitti(istat.find(p => p.no === ui.benimNo), kazanan === ui.benimNo);
+    $('yeniRozet').innerHTML = yeni.map(r => `<div class="rozet var"><span>${r.emoji}</span><b>Yeni rozet: ${r.ad}</b><small>${r.aciklama}</small></div>`).join('');
+  }
   $('olumPerdesi').hidden = true;
   $('sonEkran').hidden = false;
   const misafir = online() && Ag.mod === 'misafir';
@@ -405,7 +502,7 @@ $('sonMenuBtn').addEventListener('click', menuyeDon);
 $('tekrarBtn').addEventListener('click', () => {
   if (online()) Ag.oyunuBaslat();
   else {
-    Motor.yeni(ui.son, olayGeldi);
+    Motor.yeni(ui.son, olayGeldi, ui.sonAyar);
     oyunEkraniniKur(Motor.gorunum(0), 0);
   }
 });
@@ -413,6 +510,16 @@ document.querySelectorAll('#tepkiler button').forEach(b => b.addEventListener('c
   Ses.sec();
   Ag.tepkiGonder(b.textContent);
 }));
+$('ozelKartlarim').addEventListener('click', e => {
+  const b = e.target.closest('button[data-tur]');
+  if (!b || b.disabled) return;
+  Ses.sec();
+  Masa.ozelKullan(ui.benimNo, b.dataset.tur);
+});
+$('domatesCubugu').addEventListener('click', e => {
+  const b = e.target.closest('button[data-no]');
+  if (b) domatesFirlat(+b.dataset.no);
+});
 function sesDugmesi() {
   $('sesBtn').textContent = Ses.acik ? '🔊' : '🔇';
   $('muzikBtn').classList.toggle('kapali', !Ses.muzikAcik);

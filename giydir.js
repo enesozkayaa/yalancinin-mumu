@@ -1,0 +1,165 @@
+// =============================================================
+// Yalancının Mumu - karakter giydirme ve ayarlar
+// Giydir: her karakter için şapka / gömlek / yelek rengi ve bir aksesuar seçilir (bu cihazda saklanır).
+// Küçük bir 3D önizlemede karakter döner. Online oyunda seçtiğin kıyafet herkeste görünür.
+// Ayarlar: özel kartlar var mı, varsa hangileri (oda sahibinin ayarı geçerli).
+// =============================================================
+
+const Giydir = (() => {
+  const ANAHTAR = 'yalancininMumu.kiyafet.';
+  let renderer = null, sahne, kamera, model = null, aktifTur = null, aci = 0;
+
+  function kiyafet(tur) {
+    try {
+      const k = JSON.parse(localStorage.getItem(ANAHTAR + tur));
+      if (k && typeof k === 'object') return k;
+    } catch (e) { /* yok */ }
+    return {};
+  }
+  function kaydet(tur, k) {
+    try { localStorage.setItem(ANAHTAR + tur, JSON.stringify(k)); } catch (e) { /* yok */ }
+  }
+
+  // ---------- 3D önizleme ----------
+  function onizlemeKur() {
+    if (renderer) return;
+    const kap = $('giydirOnizleme');
+    renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setSize(220, 250);
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    kap.appendChild(renderer.domElement);
+    sahne = new THREE.Scene();
+    sahne.add(new THREE.HemisphereLight(0xffe8c8, 0x4a2a14, 1.6));
+    const l = new THREE.DirectionalLight(0xfff0d8, 1.6);
+    l.position.set(1.5, 3, 3);
+    sahne.add(l);
+    kamera = new THREE.PerspectiveCamera(32, 220 / 250, 0.1, 20);
+    kamera.position.set(0, 1.45, 2.9);
+    kamera.lookAt(0, 1.2, 0);
+    // Sürükleyerek döndür
+    let surukle = null;
+    kap.addEventListener('pointerdown', e => (surukle = e.clientX));
+    window.addEventListener('pointermove', e => {
+      if (surukle === null) return;
+      aci += (e.clientX - surukle) * 0.01;
+      surukle = e.clientX;
+    });
+    window.addEventListener('pointerup', () => (surukle = null));
+    let onceki = performance.now();
+    const ciz = () => {
+      if ($('giydirPaneli').hidden) return;
+      const simdi = performance.now();
+      const dt = Math.min(0.1, (simdi - onceki) / 1000);
+      onceki = simdi;
+      if (model) {
+        Karakterler.guncelle(model, simdi / 1000, dt);
+        model.kok.rotation.y = aci + Math.sin(simdi / 1500) * 0.35;
+      }
+      renderer.render(sahne, kamera);
+      requestAnimationFrame(ciz);
+    };
+    onizlemeKur.ciz = ciz;
+  }
+
+  function modeliYenile() {
+    if (model) sahne.remove(model.kok);
+    model = Karakterler.yap(aktifTur, { kiyafet: kiyafet(aktifTur) });
+    model.elKartlari.visible = false;
+    sahne.add(model.kok);
+  }
+
+  function paneliCiz() {
+    const k = kiyafet(aktifTur);
+    const bilgi = Karakterler.BILGI[aktifTur];
+    $('giydirBaslik').textContent = `🎨 ${bilgi.emoji} ${bilgi.ad}`;
+    const satir = (anahtar, ad) => `<div class="giySatir"><span>${ad}</span><div>`
+      + Karakterler.RENKLER[anahtar].map(r => `<button class="renk${k[anahtar] === r ? ' secili' : ''}" style="background:${r}" data-anahtar="${anahtar}" data-deger="${r}"></button>`).join('')
+      + '</div></div>';
+    $('giydirSecenekler').innerHTML = satir('sapka', 'Şapka') + satir('gomlek', 'Gömlek') + satir('yelek', 'Yelek')
+      + `<div class="giySatir"><span>Aksesuar</span><div>${Object.entries(Karakterler.AKSESUARLAR).map(([a, ad]) =>
+        `<button class="aks${(k.aksesuar || 'yok') === a ? ' secili' : ''}" data-anahtar="aksesuar" data-deger="${a}">${ad}</button>`).join('')}</div></div>`;
+  }
+
+  function ac(tur) {
+    aktifTur = tur;
+    $('giydirPaneli').hidden = false;
+    onizlemeKur();
+    modeliYenile();
+    paneliCiz();
+    onizlemeKur.ciz();
+  }
+
+  $('giydirSecenekler').addEventListener('click', e => {
+    const b = e.target.closest('button[data-anahtar]');
+    if (!b) return;
+    const k = kiyafet(aktifTur);
+    k[b.dataset.anahtar] = b.dataset.deger;
+    kaydet(aktifTur, k);
+    Ses.sec();
+    modeliYenile();
+    paneliCiz();
+    degisti();
+  });
+  $('giydirSifirla').addEventListener('click', () => {
+    kaydet(aktifTur, {});
+    modeliYenile();
+    paneliCiz();
+    degisti();
+  });
+  $('giydirKapat').addEventListener('click', () => ($('giydirPaneli').hidden = true));
+  $('giydirBtn').addEventListener('click', () => ac(ui.karakter));
+
+  // Odadaysak yeni kıyafeti oda sahibine bildir
+  function degisti() {
+    if (typeof Ag !== 'undefined' && Ag.mod !== 'yerel' && aktifTur === ui.karakter) Ag.karakterSec(ui.karakter);
+  }
+
+  // ---------- Oyun ayarları: özel kartlar ----------
+  const AYAR_ANAHTAR = 'yalancininMumu.ayar';
+  function ayar() {
+    let a = null;
+    try { a = JSON.parse(localStorage.getItem(AYAR_ANAHTAR)); } catch (e) { /* yok */ }
+    return { ozelAcik: a?.ozelAcik ?? true, ozel: Array.isArray(a?.ozel) ? a.ozel : Object.keys(Motor.OZEL) };
+  }
+  function ayarKaydet(a) {
+    try { localStorage.setItem(AYAR_ANAHTAR, JSON.stringify(a)); } catch (e) { /* yok */ }
+  }
+  // Motora gidecek hâli: özel kartlar kapalıysa boş liste
+  const motorAyari = () => {
+    const a = ayar();
+    return { ozel: a.ozelAcik ? a.ozel.filter(t => Motor.OZEL[t]) : [] };
+  };
+
+  function ayarlariCiz(kilitli, disaridan) {
+    const a = disaridan ? { ozelAcik: disaridan.ozel.length > 0, ozel: disaridan.ozel } : ayar();
+    $('ozelAcik').checked = a.ozelAcik;
+    $('ozelAcik').disabled = !!kilitli;
+    $('ozelListe').innerHTML = Object.entries(Motor.OZEL).map(([t, k]) =>
+      `<label class="ozelSecim${a.ozelAcik ? '' : ' kapali'}"><input type="checkbox" data-tur="${t}"${a.ozel.includes(t) ? ' checked' : ''}${kilitli || !a.ozelAcik ? ' disabled' : ''}>`
+      + `<span class="emoji">${k.emoji}</span><b>${k.ad}</b><small>${k.aciklama}</small></label>`).join('');
+    $('ayarNotu').textContent = kilitli ? 'Ayarları oda sahibi seçer.' : '';
+  }
+  $('ozelAcik').addEventListener('change', () => {
+    const a = ayar();
+    a.ozelAcik = $('ozelAcik').checked;
+    ayarKaydet(a);
+    ayarlariCiz();
+    Ses.sec();
+    if (typeof Ag !== 'undefined') Ag.lobiGuncelle();
+  });
+  $('ozelListe').addEventListener('change', e => {
+    const t = e.target.dataset.tur;
+    if (!t) return;
+    const a = ayar();
+    a.ozel = e.target.checked ? [...new Set([...a.ozel, t])] : a.ozel.filter(x => x !== t);
+    if (!a.ozel.length) a.ozelAcik = false;   // hiçbiri seçili değilse özel kart yok
+    ayarKaydet(a);
+    ayarlariCiz();
+    Ses.sec();
+    if (typeof Ag !== 'undefined') Ag.lobiGuncelle();
+  });
+  ayarlariCiz();
+
+  return { kiyafet, ac, motorAyari, ayarlariCiz };
+})();

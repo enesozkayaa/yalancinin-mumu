@@ -303,6 +303,12 @@ const Ses = (() => {
       nota(0, 70, 0.6, 0.9, 'sine', 0.4);
       hisirti(0.25, 1.2, 250, 0.7, 0.25, 'lowpass');
     },
+    // Domates: fırlatma vınnn + ezilme şlap
+    domates: () => {
+      hisirti(0, 0.5, 900, 1.5, 0.15, 'bandpass');
+      hisirti(0.7, 0.25, 500, 0.6, 0.6, 'lowpass');
+      hisirti(0.7, 0.1, 2500, 0.8, 0.3);
+    },
     // Mum söner: pfff
     mum: () => hisirti(0, 0.5, 700, 0.4, 0.3, 'lowpass'),
     // Sıra sende: iki notalı zil
