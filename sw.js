@@ -6,9 +6,9 @@
 // Oyunu güncelleyip yüklerken ONBELLEK numarasını 1 artır.
 // =============================================================
 
-const ONBELLEK = 'yalancinin-mumu-v1';
+const ONBELLEK = 'yalancinin-mumu-v2';
 const DOSYALAR = [
-  './', 'index.html', 'style.css', 'ses.js', 'motor.js', 'karakterler.js', 'sahne.js', 'oyun.js',
+  './', 'index.html', 'style.css', 'ses.js', 'motor.js', 'karakterler.js', 'sahne.js', 'oyun.js', 'ag.js', 'sayac.js',
   'manifest.webmanifest', 'ikonlar/ikon-192.png', 'ikonlar/ikon-512.png',
 ];
 

@@ -1,6 +1,7 @@
 // =============================================================
-// Yalancının Mumu - ekran: menü, karakter seçimi, el kartları, düğmeler, mesajlar
-// Motor'dan gelen olaylara göre sahneyi oynatır (kart atma, açma, tabanca, mum).
+// Yalancının Mumu - ekran: menü, karakter seçimi, el kartları, düğmeler, mesajlar, tepkiler
+// Motor'dan (ya da online'da oda sahibinden) gelen olaylara göre sahneyi oynatır.
+// Masa: tek başına / oda sahibiyken Motor, başkasının odasındayken Uzak (hamleleri oda sahibine yollar).
 // =============================================================
 
 const $ = id => document.getElementById(id);
@@ -8,7 +9,9 @@ const ANAHTAR_AD = 'yalancininMumu.ad';
 const ANAHTAR_KARAKTER = 'yalancininMumu.karakter';
 const kayitOku = (a, v) => { try { return localStorage.getItem(a) ?? v; } catch (e) { return v; } };
 const kayitYaz = (a, v) => { try { localStorage.setItem(a, v); } catch (e) { /* yok */ } };
+const guvenli = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
+let Masa = Motor;
 const ui = {
   benimNo: 0,
   durum: null,
@@ -18,6 +21,17 @@ const ui = {
   bakisSayac: { no: -1, sure: 0 },
   ozelBakis: {},       // bot no -> bu zamana kadar bana bakar
 };
+const online = () => typeof Ag !== 'undefined' && Ag.mod !== 'yerel';
+
+// ---------- Botların ve karakterlerin lafları ----------
+const SOZLER = {
+  at: ['Hepsi {k}, yemin ederim! 🤠', 'Bana güven, ortak.', 'Temiz kart bunlar.', 'Hıh, {k} işte.', 'Gözüme bak… {k}.', 'Annemin mezarı üstüne {k}!', 'Sıradaki gelsin.'],
+  yalanci: ['YALANCI!', 'Hadi ordan!', 'Yemezler!', 'Aç bakalım şunları!', 'Kokusu buraya geliyor!'],
+  kurtuldu: ['Ohh… az kalsın.', 'Bugün şanslı günüm!', 'Kalbim duracaktı!', 'Hâlâ buradayım! 😅'],
+  sevindi: ['Hah! Yakaladım seni!', 'Söylemiştim!', 'Sıra sende, yalancı.'],
+  oldu: { akbaba: 'Cenaze benden… 🦅', diger: ['Mumu söndü…', 'Toprağı bol olsun.', 'Yatsıyı bulamadı…'] },
+};
+const sec = (liste, r) => liste[Math.floor((r ?? Math.random()) * liste.length) % liste.length];
 
 // ---------- Menü ----------
 function menuKur() {
@@ -29,7 +43,14 @@ function menuKur() {
     b.dataset.tur = t;
     const bilgi = Karakterler.BILGI[t];
     b.innerHTML = `<span class="emoji">${bilgi.emoji}</span>${bilgi.ad}`;
-    b.addEventListener('click', () => { ui.karakter = t; kayitYaz(ANAHTAR_KARAKTER, t); karakterGoster(); Ses.sec(); });
+    b.addEventListener('click', () => {
+      if (b.classList.contains('alindi')) return;   // odada başkası seçmiş
+      ui.karakter = t;
+      kayitYaz(ANAHTAR_KARAKTER, t);
+      karakterGoster();
+      Ses.sec();
+      if (online()) Ag.karakterSec(t);
+    });
     kap.appendChild(b);
   });
   if (!Karakterler.BILGI[ui.karakter]) ui.karakter = 'horoz';
@@ -45,33 +66,42 @@ function botlaBasla() {
   Ses.hazirla();
   const ad = $('adim').value.trim() || 'Sen';
   kayitYaz(ANAHTAR_AD, $('adim').value.trim());
-  // Botlar benden farklı karakterleri rastgele alır
   const kalan = Karakterler.TURLER.filter(t => t !== ui.karakter).sort(() => Math.random() - 0.5);
   const oyuncular = [{ ad, karakter: ui.karakter, bot: false }];
   for (let i = 0; i < 3; i++) oyuncular.push({ ad: Karakterler.BILGI[kalan[i]].ad, karakter: kalan[i], bot: true });
   ui.son = oyuncular;
-  oyunuBaslat(oyuncular);
+  Masa = Motor;
+  Motor.yeni(oyuncular, olayGeldi);
+  oyunEkraniniKur(Motor.gorunum(0), 0);
 }
 
-function oyunuBaslat(oyuncular) {
-  ui.benimNo = 0;
+// Oyun ekranını aç ve sahneyi kur (tek başına, oda sahibi ve odaya katılan için ortak)
+function oyunEkraniniKur(d, benimNo) {
+  ui.benimNo = benimNo;
+  ui.durum = d;
   ui.secili.clear();
+  Masa = online() && Ag.mod === 'misafir' ? Uzak : Motor;
   $('menu').hidden = true;
   $('oyun').hidden = false;
   $('sonEkran').hidden = true;
   $('olumPerdesi').hidden = true;
   $('acilan').hidden = true;
-  $('sahne').classList.remove('olu');
-  $('el').innerHTML = '';
-  Motor.yeni(oyuncular, olayGeldi);
-  ui.durum = Motor.gorunum(ui.benimNo);
-  Sahne.kur(ui.durum.oyuncular, ui.benimNo);
+  $('sahne').classList.toggle('olu', !d.oyuncular[benimNo].canli);
+  Sahne.kur(d.oyuncular, benimNo);
+  Sahne.olumleriUygula(d.oyuncular);
   etiketleriKur();
+  elCiz(true);
   ciz();
+  Ses.muzikBaslat();
 }
 
 function menuyeDon() {
+  if (online()) {
+    Ag.ayril();
+    return;
+  }
   Motor.temizle();
+  Ses.gerilimDurdur(true);
   $('oyun').hidden = true;
   $('menu').hidden = false;
   $('sahne').classList.remove('olu');
@@ -81,9 +111,11 @@ function menuyeDon() {
 const adi = no => ui.durum.oyuncular[no].ad;
 const masaAdi = t => Motor.AD[t];
 
-function olayGeldi(tip, v) {
-  ui.durum = Motor.gorunum(ui.benimNo);
-  const d = ui.durum;
+// d: online'da oda sahibinden gelen görünüm; yoksa motordan alınır
+function olayGeldi(tip, v, d) {
+  ui.durum = d || Motor.gorunum(ui.benimNo);
+  d = ui.durum;
+  const p = no => d.oyuncular[no];
   if (tip === 'el') {
     Sahne.yiginiTemizle();
     $('acilan').hidden = true;
@@ -103,20 +135,25 @@ function olayGeldi(tip, v) {
   } else if (tip === 'oynadi') {
     Sahne.kartAt(v.no, v.adet);
     Ses.kartAt(v.adet);
-    balon(v.no, `${v.adet} ${masaAdi(v.masaKarti)}!`);
+    // Bot ara sıra laf atar, insanlar sadece kaç kart attığını söyler
+    const laf = p(v.no).bot && v.r < 0.55 ? sec(SOZLER.at, v.r * 1.8).replace('{k}', masaAdi(v.masaKarti)) : `${v.adet} ${masaAdi(v.masaKarti)}!`;
+    balon(v.no, laf);
+    Sahne.konus(v.no, 1.1);
     if (v.no === ui.benimNo) { ui.secili.clear(); elCiz(); }
-    // Biri kartlarını bitirdiyse
     if (v.kalan === 0) setTimeout(() => mesaj(`${adi(v.no)} kartlarını bitirdi`, '', 1500), 600);
-    // Botlardan biri şüpheyle bakar
-    const bakan = d.oyuncular.filter(p => p.bot && p.canli && p.no !== v.no);
-    if (bakan.length && Math.random() < 0.6) Sahne.tepki(bakan[Math.floor(Math.random() * bakan.length)].no, 'dusun', 1.6);
+    const bakan = d.oyuncular.filter(x => x.bot && x.canli && x.no !== v.no);
+    if (bakan.length && v.r > 0.4) {
+      const b = bakan[Math.floor(v.r * 10) % bakan.length].no;
+      Sahne.tepki(b, 'dusun', 1.6);
+      Sahne.ifade(b, 'supheli', 2.5);
+    }
   } else if (tip === 'yalanci') {
-    balon(v.no, 'YALANCI!', true);
+    balon(v.no, p(v.no).bot ? sec(SOZLER.yalanci, v.r) : 'YALANCI!', true);
     Sahne.tepki(v.no, 'bagir', 1.2);
     Sahne.tepki(v.atan, 'zipla', 1);
     Ses.yalanci();
-    d.oyuncular.forEach(p => p.no !== v.no && Sahne.bak(p.no, v.atan));
-    Sahne.bak(v.no, v.atan);
+    d.oyuncular.forEach(x => x.bot && x.no !== v.no && Sahne.bak(x.no, v.atan));
+    if (p(v.no).bot) Sahne.bak(v.no, v.atan);
     const turler = v.kartlar.map(k => k.tur);
     setTimeout(() => {
       Sahne.kartlariAc(turler, v.yalanVar, d.masaKarti);
@@ -125,34 +162,44 @@ function olayGeldi(tip, v) {
     }, 700);
     setTimeout(() => {
       v.yalanVar ? Ses.yalanCikti() : Ses.dogruCikti();
-      Sahne.tepki(v.yalanVar ? v.no : v.atan, 'gul', 1.6);
+      const kazanan = v.yalanVar ? v.no : v.atan;
+      Sahne.tepki(kazanan, 'gul', 1.6);
+      if (p(kazanan).bot) balon(kazanan, sec(SOZLER.sevindi, v.r));
+      Sahne.ifade(v.cezali, 'korkmus', 4);
     }, 1500);
   } else if (tip === 'tetikHazir') {
     $('acilan').hidden = true;
     Sahne.tabancaKaldir(v.no);
     Ses.topDon();
+    Ses.gerilimBaslat(4);
     setTimeout(() => Ses.gerilim(), 500);
     const kesir = `1/${6 - v.tetik}`;
     mesaj(v.no === ui.benimNo ? `Tetiği sen çekiyorsun… (ihtimal ${kesir})` : `${adi(v.no)} tetiği çekiyor… (ihtimal ${kesir})`, 'kirmizi', 3600);
     Sahne.tepki(v.no, 'titre', 3.8);
-    d.oyuncular.forEach(p => p.no !== v.no && Sahne.bak(p.no, v.no));
-    Sahne.bak(v.no, 'masa');
+    Sahne.terle(v.no, 3.5);
+    d.oyuncular.forEach(x => x.bot && x.no !== v.no && Sahne.bak(x.no, v.no));
+    if (p(v.no).bot) Sahne.bak(v.no, 'masa');
   } else if (tip === 'tetik') {
     Sahne.tetikSonuc(v.no, v.oldu);
+    Ses.gerilimDurdur();
     if (v.oldu) {
       Ses.bam();
       setTimeout(Ses.mum, 500);
       mesaj(v.no === ui.benimNo ? 'BAM! Mumun söndü 🕯️' : `BAM! ${adi(v.no)}'in mumu söndü 🕯️`, 'iri kirmizi', 2400);
       if (v.no === ui.benimNo) {
         $('sahne').classList.add('olu');
+        $('olumMenuBtn').textContent = online() ? '👀 İzlemeye devam' : '🏠 Ana menü';
         setTimeout(() => ($('olumPerdesi').hidden = false), 1600);
       }
-      // Hayatta kalanlardan biri güler, akbaba sevinir :)
-      d.oyuncular.filter(p => p.canli && p.bot).forEach(p => Math.random() < 0.5 && Sahne.tepki(p.no, p.karakter === 'akbaba' ? 'gul' : 'zipla', 1.4));
+      const yasayan = d.oyuncular.filter(x => x.canli && x.bot);
+      yasayan.forEach(x => (x.karakter === 'akbaba' || v.r > 0.5) && Sahne.tepki(x.no, x.karakter === 'akbaba' ? 'gul' : 'zipla', 1.4));
+      const konusan = yasayan.find(x => x.karakter === 'akbaba') || yasayan[Math.floor(v.r * yasayan.length)];
+      if (konusan) setTimeout(() => balon(konusan.no, konusan.karakter === 'akbaba' ? SOZLER.oldu.akbaba : sec(SOZLER.oldu.diger, v.r)), 1400);
     } else {
       Ses.tik();
       mesaj(`TIK! ${v.no === ui.benimNo ? 'Kurtuldun' : 'Kurtuldu'}… (${v.tetik}/6)`, 'iri', 2000);
-      d.oyuncular.filter(p => p.canli && p.bot && p.no !== v.no).forEach(p => Math.random() < 0.4 && Sahne.tepki(p.no, 'gul', 1.2));
+      if (p(v.no).bot) setTimeout(() => balon(v.no, sec(SOZLER.kurtuldu, v.r)), 500);
+      d.oyuncular.filter(x => x.canli && x.bot && x.no !== v.no).forEach(x => v.r < 0.4 && Sahne.tepki(x.no, 'gul', 1.2));
     }
   } else if (tip === 'bitti') {
     setTimeout(() => sonuGoster(v.kazanan), 1200);
@@ -161,7 +208,7 @@ function olayGeldi(tip, v) {
 }
 
 // Botların bakışları: sıradakine bakarlar, sıradaki bot kartlarına bakar.
-// Ben bir bota bir süre bakarsam o da bana bakar.
+// Ben bir bota bir süre bakarsam o da bana bakar. (İnsan oyuncuların kafası kendi ekranlarından gelir.)
 function bakislar() {
   const d = ui.durum;
   if (!d || d.asama !== 'oyun') return;
@@ -176,33 +223,38 @@ function bakislar() {
 setInterval(() => {
   if ($('oyun').hidden || !ui.durum) return;
   const no = Sahne.baktigim();
-  if (no === ui.bakisSayac.no && no >= 0) {
+  const p = ui.durum.oyuncular[no];
+  if (no === ui.bakisSayac.no && no >= 0 && p?.bot) {
     ui.bakisSayac.sure += 0.3;
     if (ui.bakisSayac.sure > 1 && !(ui.ozelBakis[no] > performance.now())) {
       ui.ozelBakis[no] = performance.now() + 2000;
       Sahne.bak(no, ui.benimNo);
+      Sahne.ifade(no, Math.random() < 0.5 ? 'supheli' : 'kizgin', 2);
       if (Math.random() < 0.35) Sahne.tepki(no, Math.random() < 0.5 ? 'dusun' : 'gul', 1.2);
     }
   } else ui.bakisSayac = { no, sure: 0 };
   bakislar();
 }, 300);
+// Kendi bakışımı (kafamın yönünü) odadakilere yolla
+setInterval(() => {
+  if (online() && !$('oyun').hidden) Ag.bakisGonder(Sahne.bakis.yaw, Sahne.bakis.pitch);
+}, 150);
 
 // ---------- Çizim ----------
 function ciz() {
   const d = ui.durum;
   if (!d) return;
   Sahne.kartSayilari(d.oyuncular);
-  // Masa kartı
   $('masaKarti').innerHTML = `<img src="${Sahne.kartResmi(d.masaKarti)}" alt=""><div>${masaAdi(d.masaKarti).toLocaleUpperCase('tr')} MASASI<small>El ${d.elNo} · ${d.oyuncular.filter(p => p.canli).length} mum yanıyor</small></div>`;
-  // Etiketler
   d.oyuncular.forEach(p => {
     const e = ui.etiketler[p.no];
     if (!e) return;
     e.el.classList.toggle('sirada', d.asama === 'oyun' && d.sira === p.no);
     e.el.classList.toggle('olu', !p.canli);
-    e.bilgi.textContent = p.canli ? `🃏 ${p.kartSayisi} · 🔫 ${p.tetik}/6` : '🕯️ mumu söndü';
+    const ses = online() && Ag.sesteMi(p.no) ? ' 🎙️' : '';
+    const bot = p.yedekBot ? ' · 🤖 bot oynuyor' : '';
+    e.bilgi.textContent = p.canli ? `🃏 ${p.kartSayisi} · 🔫 ${p.tetik}/6${bot}${ses}` : '🕯️ mumu söndü';
   });
-  // Benim bilgim ve düğmeler
   const ben = d.oyuncular[ui.benimNo];
   const sirada = d.asama === 'oyun' && d.sira === ui.benimNo && ben.canli;
   $('benimBilgi').classList.toggle('sirada', sirada);
@@ -221,11 +273,15 @@ function elCiz(yeni) {
   const kap = $('el');
   kap.innerHTML = '';
   if (!ben?.el) return;
+  // Elimde artık olmayan seçimleri bırak
+  [...ui.secili].forEach(id => !ben.el.some(k => k.id === id) && ui.secili.delete(id));
   ben.el.forEach((k, i) => {
     const b = document.createElement('button');
     b.className = 'elKart' + (ui.secili.has(k.id) ? ' secili' : '') + (yeni ? ' yeni' : '');
-    if (yeni) b.style.animationDelay = `${i * 0.08}s`;
-    if (yeni) setTimeout(() => b.classList.remove('yeni'), 900 + i * 80);  // animasyon takılırsa da kart görünsün
+    if (yeni) {
+      b.style.animationDelay = `${i * 0.08}s`;
+      setTimeout(() => b.classList.remove('yeni'), 900 + i * 80);
+    }
     b.innerHTML = `<img src="${Sahne.kartResmi(k.tur)}" alt="${Motor.AD[k.tur]}">`;
     b.addEventListener('click', () => {
       if (ui.secili.has(k.id)) ui.secili.delete(k.id);
@@ -261,17 +317,31 @@ function etiketleriKur() {
   };
 }
 
-function balon(no, yazi, kirmizi) {
+// Kafanın üstünde konuşma balonu. sohbet: yazılı mesajsa kendi yazdığım da ekranda görünür.
+function balon(no, yazi, kirmizi, sohbet) {
   if (no === ui.benimNo) {
-    mesaj(`Sen: “${yazi}”`, kirmizi ? 'kirmizi' : '', 1400);
+    mesaj(`Sen: “${yazi}”`, kirmizi ? 'kirmizi' : '', sohbet ? 2500 : 1400);
     return;
   }
   const e = ui.etiketler[no];
   if (!e) return;
   e.balon.textContent = yazi;
   e.balon.className = 'balon goster' + (kirmizi ? ' kirmizi' : '');
+  if (ui.durum?.oyuncular[no]?.bot) Sahne.konus(no, Math.min(2, 0.4 + yazi.length * 0.05));
   clearTimeout(e.zaman);
-  e.zaman = setTimeout(() => (e.balon.className = 'balon'), 1900);
+  e.zaman = setTimeout(() => (e.balon.className = 'balon'), sohbet ? 3500 : 1900);
+}
+
+// Emoji tepkisi: balon + karakter hareketi
+const TEPKI_HAREKET = { '😂': 'gul', '😡': 'bagir', '😱': 'zipla', '🤠': 'salla', '👍': 'salla', '🤥': 'dusun' };
+function tepkiGoster(no, e) {
+  if (!ui.durum || !Object.keys(TEPKI_HAREKET).includes(e)) return;
+  if (no === ui.benimNo) {
+    mesaj(`Sen: ${e}`, 'iri', 1200);
+    return;
+  }
+  balon(no, e);
+  Sahne.tepki(no, TEPKI_HAREKET[e], 1.4);
 }
 
 let mesajZamani = null;
@@ -297,6 +367,9 @@ function sonuGoster(kazanan) {
   const d = ui.durum;
   $('olumPerdesi').hidden = true;
   $('sonEkran').hidden = false;
+  const misafir = online() && Ag.mod === 'misafir';
+  $('tekrarBtn').hidden = misafir;
+  $('sonBekle').hidden = !misafir;
   if (kazanan === ui.benimNo) {
     Ses.kazandin();
     $('sonBaslik').textContent = '🏆 Kazandın!';
@@ -307,8 +380,6 @@ function sonuGoster(kazanan) {
     $('sonYazi').textContent = 'Saloonda mumu yanan son kişi o oldu.';
   }
 }
-
-const guvenli = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
 // Süre çubuğu
 setInterval(() => {
@@ -322,17 +393,32 @@ setInterval(() => {
 
 // ---------- Düğmeler ----------
 $('atBtn').addEventListener('click', () => {
-  if (Motor.oyna(ui.benimNo, [...ui.secili])) ui.secili.clear();
+  if (Masa.oyna(ui.benimNo, [...ui.secili]) && Masa === Motor) ui.secili.clear();
 });
-$('yalanciBtn').addEventListener('click', () => Motor.yalanci(ui.benimNo));
+$('yalanciBtn').addEventListener('click', () => Masa.yalanci(ui.benimNo));
 $('menuBtn').addEventListener('click', () => {
-  if (!Motor.aktif || confirm('Oyundan çıkıp ana menüye dönülsün mü?')) menuyeDon();
+  const soru = online() ? (Ag.mod === 'ev' ? 'Odayı kapatıp ana menüye dönülsün mü? (Arkadaşlarının oyunu da biter)' : 'Odadan çıkılsın mı? (Yerine bot oynar, aynı adla geri girebilirsin)') : 'Oyundan çıkıp ana menüye dönülsün mü?';
+  if ((!Motor.aktif && !online()) || confirm(soru)) menuyeDon();
 });
-$('olumMenuBtn').addEventListener('click', menuyeDon);
+$('olumMenuBtn').addEventListener('click', () => (online() ? ($('olumPerdesi').hidden = true) : menuyeDon()));
 $('sonMenuBtn').addEventListener('click', menuyeDon);
-$('tekrarBtn').addEventListener('click', () => oyunuBaslat(ui.son));
-function sesDugmesi() { $('sesBtn').textContent = Ses.acik ? '🔊' : '🔇'; }
+$('tekrarBtn').addEventListener('click', () => {
+  if (online()) Ag.oyunuBaslat();
+  else {
+    Motor.yeni(ui.son, olayGeldi);
+    oyunEkraniniKur(Motor.gorunum(0), 0);
+  }
+});
+document.querySelectorAll('#tepkiler button').forEach(b => b.addEventListener('click', () => {
+  Ses.sec();
+  Ag.tepkiGonder(b.textContent);
+}));
+function sesDugmesi() {
+  $('sesBtn').textContent = Ses.acik ? '🔊' : '🔇';
+  $('muzikBtn').classList.toggle('kapali', !Ses.muzikAcik);
+}
 $('sesBtn').addEventListener('click', () => { Ses.ac(!Ses.acik); sesDugmesi(); });
+$('muzikBtn').addEventListener('click', () => { Ses.muzikAc(!Ses.muzikAcik); sesDugmesi(); });
 sesDugmesi();
 
 Sahne.baslat($('sahne'));

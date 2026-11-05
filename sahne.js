@@ -231,7 +231,17 @@ const Sahne = (() => {
     const duvarDoku = tahtaDoku('#9a6a3e', '#7a4c2a', [5, 2], true);
     const duvar = mat('#ffffff', { map: duvarDoku });
     const D = 6, Y = 4.4;
-    [[0, -D, 0], [0, D, Math.PI], [-D, 0, Math.PI / 2], [D, 0, -Math.PI / 2]].forEach(([x, z, r]) => {
+    // Karşı duvar kapı boşluğu bırakılarak üç parça: sol, sağ, kapının üstü
+    const K = 0.9, KY = 2.6;
+    [[-(D + K) / 2, D - K, Y / 2, Y], [(D + K) / 2, D - K, Y / 2, Y], [0, 2 * K, (KY + Y) / 2, Y - KY]].forEach(([x, g, y, h]) => {
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(g, h), mat('#ffffff', { map: duvarDoku.clone() }));
+      m.material.map.repeat.set((5 * g) / (2 * D), (2 * h) / Y);
+      m.material.map.needsUpdate = true;
+      m.position.set(x, y, -D);
+      m.receiveShadow = true;
+      sahne.add(m);
+    });
+    [[0, D, Math.PI], [-D, 0, Math.PI / 2], [D, 0, -Math.PI / 2]].forEach(([x, z, r]) => {
       const m = new THREE.Mesh(new THREE.PlaneGeometry(2 * D, Y), duvar);
       m.position.set(x, Y / 2, z);
       m.rotation.y = r;
@@ -250,9 +260,7 @@ const Sahne = (() => {
     for (let x = -4.5; x <= 4.5; x += 1.5) kutu(0.18, 0.22, 2 * D, mat('#4a2c16'), x, Y - 0.11, 0);
 
     // Karşı duvarda sallanan kapılar ve tabela (oyuncunun tam karşısı)
-    const disari = new THREE.Mesh(new THREE.PlaneGeometry(1.8, 2.6), new THREE.MeshBasicMaterial({ color: 0xffd9a0 }));
-    disari.position.set(0, 1.3, -D + 0.01);
-    sahne.add(disari);
+    disariKur(D);
     kutu(0.14, 2.7, 0.14, mat('#4a2a14'), -0.95, 1.35, -D + 0.07);
     kutu(0.14, 2.7, 0.14, mat('#4a2a14'), 0.95, 1.35, -D + 0.07);
     kutu(2.04, 0.16, 0.14, mat('#4a2a14'), 0, 2.68, -D + 0.07);
@@ -351,6 +359,46 @@ const Sahne = (() => {
     });
   }
 
+  // Kapının dışı: güneşli çöl, uzakta kızıl kayalıklar, ara sıra yuvarlanan diken otu
+  let dikenOtu = null;
+  function disariKur(D) {
+    const kum = new THREE.Mesh(new THREE.PlaneGeometry(40, 16), new THREE.MeshBasicMaterial({ color: 0xe0b878, fog: false }));
+    kum.rotation.x = -Math.PI / 2;
+    kum.position.set(0, -0.01, -D - 8);
+    sahne.add(kum);
+    const gok = dokuKanvas(512, 256, (g, w, h) => {
+      const gr = g.createLinearGradient(0, 0, 0, h);
+      gr.addColorStop(0, '#7ab8e8');
+      gr.addColorStop(0.62, '#f3d9a8');
+      gr.addColorStop(0.63, '#d9a466');
+      gr.addColorStop(1, '#e0b878');
+      g.fillStyle = gr;
+      g.fillRect(0, 0, w, h);
+      g.fillStyle = '#b5552e';
+      [[30, 120, 70], [150, 135, 50], [300, 112, 110], [430, 128, 60]].forEach(([x, y, gen]) => {
+        g.beginPath();
+        g.moveTo(x - 14, 162);
+        g.lineTo(x, y);
+        g.lineTo(x + gen, y);
+        g.lineTo(x + gen + 16, 162);
+        g.fill();
+      });
+      g.fillStyle = '#4a7a3a';
+      g.fillRect(222, 120, 9, 50);
+      g.fillRect(212, 132, 8, 18);
+      g.fillRect(233, 128, 8, 16);
+      g.fillStyle = '#fff6d0';
+      g.beginPath(); g.arc(400, 40, 18, 0, 7); g.fill();
+    });
+    const arka = new THREE.Mesh(new THREE.PlaneGeometry(40, 12), new THREE.MeshBasicMaterial({ map: gok, fog: false }));
+    arka.position.set(0, 3.6, -D - 14);
+    sahne.add(arka);
+    dikenOtu = new THREE.Mesh(new THREE.IcosahedronGeometry(0.32, 1), new THREE.MeshBasicMaterial({ color: 0x8a6a3a, wireframe: true, fog: false }));
+    dikenOtu.userData = { x: -30, sonraki: 6 };
+    dikenOtu.position.set(-30, 0.32, -D - 3.5);
+    sahne.add(dikenOtu);
+  }
+
   function masaKur() {
     // Kare masa: koyu yeşil çuha, ahşap kenar, kalın ayaklar; üstünde lamba
     const cuha = dokuKanvas(256, 256, (g, w, h) => {
@@ -381,6 +429,9 @@ const Sahne = (() => {
     sahne.add(ip);
   }
 
+  const KABZA = V(0, -0.1, -0.09);   // tabancada elin tuttuğu yer (kabza)
+  let KOL_X = -0.7, KOL_Y = 0.5;     // tabancayı tutan kolun duruşu
+  let elim = null, kapiAcik = 0;
   function tabancaKur() {
     // Altıpatlar: namlu, top (6 hazneli), kabza, tetik korkuluğu
     tabanca = new THREE.Group();
@@ -407,6 +458,20 @@ const Sahne = (() => {
     tabancaIsik.position.set(0, 0.03, 0.4);
     tabanca.add(tabancaIsik);
     tabanca.scale.setScalar(0.75);
+    // Birinci şahısta tabancayı tutan kendi elim (kabzanın üstünde) ve kolum
+    elim = new THREE.Group();
+    const avuc = new THREE.Mesh(new THREE.SphereGeometry(0.055, 14, 10), mat('#ffffff', { roughness: 0.9 }));
+    avuc.position.copy(KABZA);
+    avuc.scale.set(1.25, 1, 1.1);
+    const parmak = new THREE.Mesh(new THREE.CapsuleGeometry(0.018, 0.05, 3, 8), avuc.material);
+    parmak.position.set(0, -0.03, 0.0);
+    parmak.rotation.x = 1.2;
+    const kol = new THREE.Mesh(new THREE.CapsuleGeometry(0.06, 0.5, 4, 10), mat('#ffffff', { roughness: 0.9 }));
+    kol.position.set(0, -0.3, -0.3);
+    kol.rotation.x = -0.75;
+    elim.add(avuc, parmak, kol);
+    elim.visible = false;
+    tabanca.add(elim);
     tabancaMasaya(true);
     sahne.add(tabanca);
   }
@@ -452,7 +517,11 @@ const Sahne = (() => {
       koltuklar.push(kt);
     });
     yiginiTemizle();
+    efektleriTemizle();
     tabancaMasaya(true);
+    const benimKarakter = oyuncular.find(p => p.no === ben)?.karakter;
+    elim.children.forEach((m, i) => m.material.color.set(i < 2 ? Karakterler.elRengi(benimKarakter) : Karakterler.gomlekRengi(benimKarakter)));
+    gezginleriKur(oyuncular.map(p => p.karakter));
     oldum = 0;
     olumSure = 0;
     titreme = 0;
@@ -601,7 +670,7 @@ const Sahne = (() => {
     const sag = V(Math.cos(a), 0, -Math.sin(a));
     // Tabanca kafanın bana dönük yanında olsun (arkada kalıp görünmesin)
     const yan = kafa.clone().add(sag).distanceTo(kamera.position) < kafa.clone().sub(sag).distanceTo(kamera.position) ? 1 : -1;
-    tabanca.scale.setScalar(1.1);
+    tabanca.scale.setScalar(1.0);
     // Her karede elin yerine taşınır (kare() içinde); buradan oraya uçarak gelir
     tabanca.userData.sahip = k;
     tabanca.userData.sahipOran = 0;
@@ -627,6 +696,7 @@ const Sahne = (() => {
       titreme = 0.6;
       if (kt?.k) {
         Karakterler.oldur(kt.k);
+        setTimeout(() => sinekEkle(no), 2500);   // ölünün başında sinek dolaşır :)
         // geriye savrulma
         const k = kt.k;
         const yer = k.kok.position.clone();
@@ -765,24 +835,30 @@ const Sahne = (() => {
     koltuklar.forEach(kt => {
       if (kt.k) {
         Karakterler.guncelle(kt.k, t, dt);
-        // Tabancayı tutan sağ kol kafaya kalkar
+        // Tabancayı tutan kol kafaya kalkar (önce kol, sonra tabanca ele yerleşir)
+        kt.k.kollar.forEach((kol, i) => {
+          if (kt.k.tabancaTut && kt.k.tabancaKolu === i) {
+            kol.omuz.rotation.x = KOL_X;
+            kol.omuz.rotation.y = kol.y * KOL_Y;
+          } else kol.omuz.rotation.y = -kol.y * 0.42;
+        });
         const tu = tabanca.userData;
         if (tu.sahip === kt.k && kt.k.tabancaTut) {
           // Tabanca elde, namlusu şakağa dönük
           tu.sahipOran = Math.min(1, tu.sahipOran + dt * 1.6);
           const el = kt.k.kollar[kt.k.tabancaKolu].el.getWorldPosition(V());
           const kafa = kt.k.kafa.getWorldPosition(V());
-          const hedef = el.clone().lerp(kafa, 0.25).add(V(0, 0.06, 0));
+          // Önce elden kafaya doğru çevir, sonra kabzası tam ele gelecek şekilde kaydır
           const o = 1 - Math.pow(1 - tu.sahipOran, 3);
-          tabanca.position.lerpVectors(tu.bas, hedef, o);
+          const yer = V();
+          for (let d = 0; d < 2; d++) {
+            tabanca.position.copy(d ? yer : el);
+            tabanca.lookAt(kafa);
+            yer.copy(el).sub(KABZA.clone().multiplyScalar(tabanca.scale.x).applyQuaternion(tabanca.quaternion));
+          }
+          tabanca.position.lerpVectors(tu.bas, yer, o);
           tabanca.lookAt(kafa);
         }
-        kt.k.kollar.forEach((kol, i) => {
-          if (kt.k.tabancaTut && kt.k.tabancaKolu === i) {
-            kol.omuz.rotation.x = -1.25;
-            kol.omuz.rotation.y = kol.y * 0.15;
-          } else kol.omuz.rotation.y = -kol.y * 0.42;
-        });
       }
       // Mum alevi titrer; sönerken küçülür
       const u = kt.mumGrup.userData;
@@ -794,7 +870,9 @@ const Sahne = (() => {
       u.isik.intensity = 1.4 * u.yanik * tit;
     });
     // Kapılar hafifçe sallanır
-    window.__kapilar?.forEach((m, i) => (m.rotation.y = Math.sin(t * 0.9 + i) * 0.06 * (i ? -1 : 1)));
+    kapiAcik += ((kapiyaYakin() ? 1 : 0) - kapiAcik) * Math.min(1, dt * 5);
+    window.__kapilar?.forEach((m, i) => (m.rotation.y = (Math.sin(t * 0.9 + i) * 0.06 + kapiAcik * 1.25 + Math.sin(t * 9) * 0.08 * kapiAcik) * (i ? -1 : 1)));
+    gezginleriGuncelle(t, dt);
 
     // Kamera (benim kafam)
     const ben = koltuklar.find(k => k.no === benimNo);
@@ -836,6 +914,9 @@ const Sahne = (() => {
       tabanca.rotateY(-1.0);
       tabanca.rotateZ(Math.sin(t * 40) * 0.01);
     }
+    elim.visible = !!tabanca.userData.bende;
+    dikenOtuGuncelle(dt);
+    efektleriGuncelle(t, dt);
     renderer.render(sahne, kamera);
     etiketGuncelle();
   }
@@ -849,7 +930,200 @@ const Sahne = (() => {
     return { x: (p.x * 0.5 + 0.5) * window.innerWidth, y: (-p.y * 0.5 + 0.5) * window.innerHeight };
   }
 
+  // ---------- Saloonda gezenler ----------
+  // Masada oturmayan karakterlerden biri piyano çalar, biri kapıdan girip bara gider, masaya gelip
+  // kartlara bakar, sonra çıkıp gider. Kapı geçerken açılır.
+  const YOL = {
+    dis: V(0, 0, -9.5), kapi: V(0, 0, -6.4), iceri: V(0, 0, -4.6),
+    bar1: V(-4.25, 0, -1.4), bar2: V(-4.25, 0, 1.0),
+    masa2: V(0.85, 0, -2.85), masa1: V(2.95, 0, -0.9), masa3: V(-2.95, 0, -0.9),
+  };
+  let gezginler = [], piyanist = null;
+  function gezginleriKur(kullanilan) {
+    gezginler.forEach(g => sahne.remove(g.k.kok));
+    if (piyanist) sahne.remove(piyanist.kok);
+    gezginler = [];
+    const bos = Karakterler.TURLER.filter(t => !kullanilan.includes(t)).sort(() => Math.random() - 0.5);
+    while (bos.length < 2) bos.push(Karakterler.TURLER[Math.floor(Math.random() * 6)]);
+    // Piyanist: piyanonun önünde oturur
+    piyanist = Karakterler.yap(bos[0]);
+    piyanist.kok.position.set(4.85, 0, 1.2);
+    piyanist.kok.rotation.y = Math.PI / 2;
+    piyanist.elKartlari.visible = false;
+    piyanist.hedefPitch = 0.3;
+    sahne.add(piyanist.kok);
+    // Gezgin
+    const k = Karakterler.yap(bos[1], { ayakta: true });
+    k.kok.position.copy(YOL.dis);
+    sahne.add(k.kok);
+    gezginler.push({ k, plan: [], bekle: 3 + Math.random() * 5, hedef: null, durus: false });
+  }
+
+  function planYap() {
+    const masa = ['masa1', 'masa2', 'masa3'].sort(() => Math.random() - 0.5);
+    const bar = Math.random() < 0.5 ? 'bar1' : 'bar2';
+    const p = ['kapi', 'iceri', bar, masa[0]];
+    if (Math.random() < 0.5) p.push(masa[1]);
+    p.push('iceri', 'kapi', 'dis');
+    return p;
+  }
+
+  function kapiyaYakin() {
+    return gezginler.some(g => Math.abs(g.k.kok.position.x) < 1.2 && Math.abs(g.k.kok.position.z + 6) < 1.3);
+  }
+
+  function gezginleriGuncelle(t, dt) {
+    if (piyanist) {
+      Karakterler.guncelle(piyanist, t, dt);
+      const calar = typeof Ses !== 'undefined' && Ses.muzikCaliyor;
+      piyanist.kollar.forEach((kol, i) => (kol.omuz.rotation.x = 0.6 + (calar ? Math.sin(t * 9 + i * 2) * 0.12 : 0)));
+      piyanist.kafa.rotation.z = calar ? Math.sin(t * 4.4) * 0.12 : 0;
+    }
+    gezginler.forEach(g => {
+      const k = g.k;
+      Karakterler.guncelle(k, t, dt);
+      if (g.bekle > 0) {
+        g.bekle -= dt;
+        k.yuru = Math.max(0, k.yuru - dt * 4);
+        // Masada duruyorsa kartlara bakar, ara sıra güler / mırıldanır
+        if (g.durus && Math.random() < dt * 0.25) Karakterler.tepki(k, Math.random() < 0.5 ? 'gul' : 'dusun', 1.4);
+        return;
+      }
+      if (!g.hedef) {
+        if (!g.plan.length) g.plan = planYap();
+        g.ad = g.plan.shift();
+        g.hedef = YOL[g.ad];
+      }
+      const p = k.kok.position;
+      const fark = g.hedef.clone().sub(p);
+      fark.y = 0;
+      const mesafe = fark.length();
+      if (mesafe < 0.08) {
+        g.hedef = null;
+        g.durus = g.ad.startsWith('masa');
+        g.bekle = g.ad === 'dis' ? 6 + Math.random() * 14 : g.ad.startsWith('bar') ? 4 + Math.random() * 5 : g.durus ? 5 + Math.random() * 5 : 0;
+        if (g.durus) {
+          k.hedefAci = Math.atan2(-p.x, -p.z);   // masaya dön, kartlara eğil
+          k.hedefPitch = 0.45;
+        } else if (g.ad.startsWith('bar')) {
+          k.hedefAci = -Math.PI / 2;
+          k.hedefPitch = 0.1;
+        }
+        return;
+      }
+      k.hedefPitch = 0;
+      k.yuru = Math.min(1, k.yuru + dt * 3);
+      p.add(fark.normalize().multiplyScalar(Math.min(mesafe, dt * 1.15 * k.yuru)));
+      k.hedefAci = Math.atan2(fark.x, fark.z);
+    });
+    gezginler.forEach(({ k }) => {
+      if (k.hedefAci === undefined) return;
+      let d = k.hedefAci - k.kok.rotation.y;
+      d = Math.atan2(Math.sin(d), Math.cos(d));
+      k.kok.rotation.y += d * Math.min(1, dt * 5);
+    });
+  }
+
+  function dikenOtuGuncelle(dt) {
+    const u = dikenOtu.userData;
+    if (u.sonraki > 0) {
+      u.sonraki -= dt;
+      return;
+    }
+    u.x += dt * 3.2;
+    dikenOtu.position.x = u.x;
+    dikenOtu.position.y = 0.32 + Math.abs(Math.sin(u.x * 1.3)) * 0.35;
+    dikenOtu.rotation.z -= dt * 6;
+    if (u.x > 20) {
+      u.x = -20;
+      u.sonraki = 15 + Math.random() * 25;
+    }
+  }
+
+  // ---------- Küçük efektler: ter damlası, ölünün etrafında uçan sinek ----------
+  const efektler = [];
+  function terle(no, sure = 3) {
+    const kt = koltuklar.find(k => k.no === no);
+    if (!kt?.k) return;
+    for (let i = 0; i < Math.round(sure * 3); i++) {
+      const d = new THREE.Mesh(new THREE.SphereGeometry(0.018, 8, 6), new THREE.MeshStandardMaterial({ color: 0x9fd8ff, transparent: true, opacity: 0.85, roughness: 0.1 }));
+      d.scale.y = 1.5;
+      d.visible = false;
+      sahne.add(d);
+      const yan = (Math.random() < 0.5 ? -1 : 1) * (0.12 + Math.random() * 0.06);
+      animEkle(0.7, p => {
+        d.visible = true;
+        d.position.copy(kt.k.kafa.localToWorld(V(yan, 0.08 - p * 0.3, 0.1)));
+        d.material.opacity = 0.85 * (1 - p);
+      }, () => sahne.remove(d), i * 0.33 + Math.random() * 0.2);
+    }
+  }
+  function sinekEkle(no) {
+    const kt = koltuklar.find(k => k.no === no);
+    if (!kt?.k) return;
+    const s = new THREE.Group();
+    const govde = new THREE.Mesh(new THREE.SphereGeometry(0.012, 6, 5), new THREE.MeshBasicMaterial({ color: 0x111111 }));
+    const kanat = new THREE.Mesh(new THREE.PlaneGeometry(0.025, 0.012), new THREE.MeshBasicMaterial({ color: 0xcfe8ff, transparent: true, opacity: 0.6, side: THREE.DoubleSide }));
+    kanat.position.y = 0.008;
+    s.add(govde, kanat);
+    sahne.add(s);
+    efektler.push({ tur: 'sinek', s, kanat, kt, faz: Math.random() * 6 });
+  }
+  function efektleriGuncelle(t) {
+    efektler.forEach(e => {
+      const merkez = e.kt.k.kafa.getWorldPosition(V());
+      const a = t * 3.1 + e.faz;
+      e.s.position.set(merkez.x + Math.cos(a) * 0.3 + Math.sin(t * 7) * 0.04, merkez.y + 0.15 + Math.sin(t * 5.3) * 0.08, merkez.z + Math.sin(a * 1.3) * 0.3);
+      e.kanat.rotation.x = Math.sin(t * 80) * 0.8;
+    });
+  }
+  function efektleriTemizle() {
+    efektler.splice(0).forEach(e => sahne.remove(e.s));
+  }
+
+  // ---------- Online / ses için ----------
+  const kt_ = no => koltuklar.find(k => k.no === no)?.k;
+  // Mikrofondan gelen ses seviyesi (0-1): ağzı oynatır
+  function konusmaSeviyesi(no, v) {
+    const k = kt_(no);
+    if (k) k.konusmaHedef = Math.max(k.konusmaHedef, v);
+  }
+  function konus(no, sure) {
+    const k = kt_(no);
+    if (k) Karakterler.konus(k, sure);
+  }
+  function ifade(no, tur, sure) {
+    const k = kt_(no);
+    if (k) Karakterler.ifade(k, tur, sure);
+  }
+  // Başka bir oyuncunun kafasını (kendi ekranında baktığı yöne göre) çevir
+  function bakisUygula(no, yaw, pitch) {
+    const k = kt_(no);
+    if (!k) return;
+    k.hedefYaw = Math.max(-1.3, Math.min(1.3, yaw));
+    k.hedefPitch = Math.max(-0.4, Math.min(0.7, 0.12 - pitch));
+  }
+  // Oyuna sonradan girince: ölmüş olanlar hemen ölü görünsün, mumları sönük olsun
+  function olumleriUygula(oyuncular) {
+    oyuncular.forEach(p => {
+      if (p.canli) return;
+      const kt = koltuklar.find(k => k.no === p.no);
+      if (!kt) return;
+      kt.mumGrup.userData.hedef = kt.mumGrup.userData.yanik = 0;
+      if (kt.k && !kt.k.olu) {
+        Karakterler.oldur(kt.k);
+        kt.k.oluOran = 1;
+        sinekEkle(p.no);
+      }
+      if (p.no === benimNo) {
+        oldum = 1;
+        olumSure = 5;
+      }
+    });
+  }
+
   return {
+    terle, sinekEkle, efektleriTemizle, konusmaSeviyesi, konus, ifade, bakisUygula, olumleriUygula,
     baslat, kur, kartSayilari, kartAt, kartlariAc, yiginiTemizle, tabancaKaldir, tetikSonuc, mumSondur,
     bak, tepki, baktigim, ekranKonumu, kartResmi,
     set etiketGuncelle(f) { etiketGuncelle = f; },

@@ -142,7 +142,7 @@ const Motor = (() => {
     o.son = { no, kartlar };
     o.iddiaToplam += kartlar.length;
     clearInterval(sayacZamani);
-    olay('oynadi', { no, adet: kartlar.length, kalan: p.el.length, masaKarti: o.masaKarti });
+    olay('oynadi', { no, adet: kartlar.length, kalan: p.el.length, masaKarti: o.masaKarti, r: Math.random() });
     const sonraki = siradakiKartli(no);
     if (sonraki === -1) {
       // Kimsede kart kalmadı (olmaz ama): son atanı sıradaki suçlasın
@@ -161,7 +161,7 @@ const Motor = (() => {
     const yalanVar = o.son.kartlar.some(k => !dogruMu(k));
     o.cezali = yalanVar ? atan : no;
     o.sonAcilan = { atan, kartlar: o.son.kartlar, yalanVar };
-    olay('yalanci', { no, atan, kartlar: o.son.kartlar, yalanVar, cezali: o.cezali });
+    olay('yalanci', { no, atan, kartlar: o.son.kartlar, yalanVar, cezali: o.cezali, r: Math.random() });
     zamanlayici = setTimeout(tetikHazirla, BEKLE.acilis);
     return true;
   }
@@ -181,7 +181,7 @@ const Motor = (() => {
       p.canli = false;
       p.el = [];
     }
-    olay('tetik', { no: p.no, oldu, tetik: p.tetik });
+    olay('tetik', { no: p.no, oldu, tetik: p.tetik, r: Math.random() });
     zamanlayici = setTimeout(() => {
       const kalan = canlilar();
       if (kalan.length <= 1) {
@@ -248,14 +248,28 @@ const Motor = (() => {
       cezali: o.cezali, kazanan: o.kazanan, bitis: o.bitis, sonAcilan: o.sonAcilan,
       zorunlu: o.asama === 'oyun' && zorunlu(o.sira),
       oyuncular: o.oyuncular.map(p => ({
-        no: p.no, ad: p.ad, karakter: p.karakter, bot: p.bot, canli: p.canli, tetik: p.tetik,
+        no: p.no, ad: p.ad, karakter: p.karakter, bot: p.bot, yedekBot: !!p.yedekBot, canli: p.canli, tetik: p.tetik,
         kartSayisi: p.el.length, el: p.no === no ? p.el : null,
       })),
     };
   }
 
+  // Online: oyundan çıkanın yerine bot oynar (evet), geri gelince bot bırakır (hayır)
+  function botYap(no, evet) {
+    const p = o?.oyuncular[no];
+    if (!p || p.bot === evet) return;
+    p.bot = evet;
+    p.yedekBot = evet;
+    if (o.asama === 'oyun' && o.sira === no) {
+      clearInterval(sayacZamani);
+      clearTimeout(botZamani);
+      if (evet) botZamani = setTimeout(() => botOyna(p), 1200);
+      else siraBaslat();
+    }
+  }
+
   return {
-    yeni, temizle, oyna, yalanci, gorunum, AD, SURE,
+    yeni, temizle, oyna, yalanci, gorunum, botYap, AD, SURE,
     get aktif() { return !!o && o.asama !== 'bitti'; },
   };
 })();
