@@ -968,6 +968,29 @@ const Sahne = (() => {
     return p;
   }
 
+  // A'dan B'ye düz yol masaya (ve sandalyelere) çok yaklaşıyorsa, masanın çevresinden dolaşan
+  // ara noktalar döner. Dolaşma her zaman masanın arka tarafından olur (kameranın önünden geçmez).
+  const MASA_UZAK = 2.6, DOLASMA_R = 3.1;
+  function dolasma(a, b) {
+    const ab = V(b.x - a.x, 0, b.z - a.z);
+    const uz = ab.lengthSq();
+    const t = uz ? Math.max(0, Math.min(1, -(a.x * ab.x + a.z * ab.z) / uz)) : 0;
+    const enYakin = Math.hypot(a.x + ab.x * t, a.z + ab.z * t);
+    if (enYakin >= MASA_UZAK) return [];
+    const aci = v => {
+      const x = Math.atan2(v.x, v.z);   // 0: kameranın olduğu taraf
+      return x < 0 ? x + Math.PI * 2 : x;
+    };
+    const a1 = aci(a), a2 = aci(b);
+    const adim = Math.max(1, Math.ceil(Math.abs(a2 - a1) / 0.7));
+    const noktalar = [];
+    for (let i = 0; i <= adim; i++) {
+      const x = a1 + ((a2 - a1) * i) / adim;
+      noktalar.push(V(Math.sin(x) * DOLASMA_R, 0, Math.cos(x) * DOLASMA_R));
+    }
+    return noktalar;
+  }
+
   function kapiyaYakin() {
     return gezginler.some(g => Math.abs(g.k.kok.position.x) < 1.2 && Math.abs(g.k.kok.position.z + 6) < 1.3);
   }
@@ -990,9 +1013,14 @@ const Sahne = (() => {
         return;
       }
       if (!g.hedef) {
-        if (!g.plan.length) g.plan = planYap();
-        g.ad = g.plan.shift();
-        g.hedef = YOL[g.ad];
+        if (g.ara?.length) g.hedef = g.ara.shift();   // masanın etrafından dolaşan ara noktalar
+        else {
+          if (!g.plan.length) g.plan = planYap();
+          g.ad = g.plan.shift();
+          g.ara = dolasma(k.kok.position, YOL[g.ad]);
+          g.ara.push(YOL[g.ad]);
+          g.hedef = g.ara.shift();
+        }
       }
       const p = k.kok.position;
       const fark = g.hedef.clone().sub(p);
@@ -1000,6 +1028,7 @@ const Sahne = (() => {
       const mesafe = fark.length();
       if (mesafe < 0.08) {
         g.hedef = null;
+        if (g.ara.length) return;   // ara noktadaydı, durmadan devam
         g.durus = g.ad.startsWith('masa');
         g.bekle = g.ad === 'dis' ? 6 + Math.random() * 14 : g.ad.startsWith('bar') ? 4 + Math.random() * 5 : g.durus ? 5 + Math.random() * 5 : 0;
         if (g.durus) {
