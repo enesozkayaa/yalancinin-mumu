@@ -258,17 +258,127 @@ function domatesGoster(kimden, hedef) {
   Sahne.domatesAt(kimden, hedef, bana);
   Ses.domates();
   if (bana) {
-    setTimeout(() => {
-      const e = $('ekranDomates');
-      e.style.left = `${20 + Math.random() * 50}%`;
-      e.style.top = `${15 + Math.random() * 40}%`;
-      e.classList.remove('goster');
-      void e.offsetWidth;
-      e.classList.add('goster');
-    }, 700);
+    setTimeout(ekranaDomates, 700);
     setTimeout(() => mesaj(`🍅 ${adi(kimden)} sana domates attı!`, '', 2000), 750);
   }
 }
+// Ekrana yapışan domates: ezik domates (çekirdekli, parçalı, parlak) görüşü kapatır, suyu 3 sn boyunca
+// aşağı doğru akar, sonra yavaşça kaybolur.
+function ekranaDomates() {
+  const c = $('domatesKanvas');
+  const w = (c.width = innerWidth), h = (c.height = innerHeight);
+  const g = c.getContext('2d');
+  const R = Math.min(w, h) * (0.3 + Math.random() * 0.06);
+  const cx = w * (0.35 + Math.random() * 0.3), cy = h * (0.28 + Math.random() * 0.2);
+  // Eziğin kendisi: bir kez çizilip saklanır
+  const ez = document.createElement('canvas');
+  ez.width = w;
+  ez.height = h;
+  const e = ez.getContext('2d');
+  const sekil = [...Array(5)].map(() => [Math.random() * 6, 2 + Math.floor(Math.random() * 5), 0.05 + Math.random() * 0.12]);
+  const kenar = a => R * (1 + sekil.reduce((t, [f, n, s]) => t + Math.sin(a * n + f) * s, 0));
+  const yol = (olcek, dx = 0, dy = 0) => {
+    e.beginPath();
+    for (let i = 0; i <= 64; i++) {
+      const a = (i / 64) * Math.PI * 2, r = kenar(a) * olcek;
+      e.lineTo(cx + dx + Math.cos(a) * r, cy + dy + Math.sin(a) * r * 0.9);
+    }
+    e.closePath();
+  };
+  // Etrafa sıçrayan damlalar
+  for (let i = 0; i < 26; i++) {
+    const a = Math.random() * Math.PI * 2, u = R * (1.05 + Math.random() * 0.8), r = 4 + Math.random() * R * 0.07;
+    e.fillStyle = `rgba(${170 + Math.random() * 40},${14 + Math.random() * 20},10,0.92)`;
+    e.beginPath();
+    e.ellipse(cx + Math.cos(a) * u, cy + Math.sin(a) * u, r, r * (0.6 + Math.random() * 0.4), a, 0, 7);
+    e.fill();
+  }
+  // Ana ezik: koyu kenar, içte açık kırmızı, sulu parlaklık
+  const gr = e.createRadialGradient(cx - R * 0.2, cy - R * 0.25, R * 0.1, cx, cy, R * 1.1);
+  gr.addColorStop(0, '#ff5a3c');
+  gr.addColorStop(0.55, '#d8241a');
+  gr.addColorStop(1, '#8e0f0a');
+  e.fillStyle = gr;
+  yol(1);
+  e.fill();
+  // İç et parçaları (daha açık, düzensiz)
+  for (let i = 0; i < 7; i++) {
+    const a = Math.random() * Math.PI * 2, u = R * Math.random() * 0.6;
+    e.fillStyle = `rgba(255,${90 + Math.random() * 50},${70 + Math.random() * 30},0.55)`;
+    e.beginPath();
+    e.ellipse(cx + Math.cos(a) * u, cy + Math.sin(a) * u, R * (0.12 + Math.random() * 0.12), R * (0.07 + Math.random() * 0.08), Math.random() * 3, 0, 7);
+    e.fill();
+  }
+  // Çekirdekler (sarımsı, jöleli)
+  for (let i = 0; i < 34; i++) {
+    const a = Math.random() * Math.PI * 2, u = R * Math.sqrt(Math.random()) * 0.75;
+    const x = cx + Math.cos(a) * u, y = cy + Math.sin(a) * u, b = 3 + Math.random() * 4;
+    e.fillStyle = 'rgba(255,190,120,0.35)';
+    e.beginPath(); e.ellipse(x, y, b * 1.9, b * 1.4, a, 0, 7); e.fill();
+    e.fillStyle = '#f2d27a';
+    e.beginPath(); e.ellipse(x, y, b, b * 0.6, a, 0, 7); e.fill();
+  }
+  // Kabuk parçası ve sap
+  e.fillStyle = '#b5150e';
+  e.beginPath(); e.ellipse(cx + R * 0.45, cy - R * 0.35, R * 0.22, R * 0.1, -0.6, 0, 7); e.fill();
+  e.fillStyle = '#3a7a2a';
+  for (let i = 0; i < 5; i++) {
+    e.beginPath();
+    e.ellipse(cx - R * 0.3 + Math.cos(i * 1.26) * 10, cy - R * 0.45 + Math.sin(i * 1.26) * 10, 12, 4, i * 1.26, 0, 7);
+    e.fill();
+  }
+  // Islak parlaklık
+  e.fillStyle = 'rgba(255,255,255,0.35)';
+  for (let i = 0; i < 6; i++) {
+    e.beginPath();
+    e.ellipse(cx - R * 0.35 + Math.random() * R * 0.5, cy - R * 0.4 + Math.random() * R * 0.4, 6 + Math.random() * 16, 3 + Math.random() * 5, -0.5, 0, 7);
+    e.fill();
+  }
+  // Akan su: eziğin alt kenarından aşağı süzülen damlalar
+  const akintilar = [...Array(9 + Math.floor(Math.random() * 5))].map(() => {
+    const a = Math.PI * (0.15 + Math.random() * 0.7);   // alt yarım
+    return {
+      x: cx + Math.cos(a) * kenar(a) * 0.85, y0: cy + Math.sin(a) * kenar(a) * 0.8,
+      gen: 7 + Math.random() * 16, boy: 0, hiz: 70 + Math.random() * 130, sal: Math.random() * 6,
+    };
+  });
+  const bas = performance.now();
+  c.style.transition = 'none';
+  c.style.opacity = '1';
+  cancelAnimationFrame(ekranaDomates.istek);
+  const ciz = () => {
+    const t = (performance.now() - bas) / 1000;
+    g.clearRect(0, 0, w, h);
+    akintilar.forEach(a => {
+      if (t < 3.2) {
+        a.boy += a.hiz * (1 - t / 4) * (1 / 60) * (0.6 + Math.random() * 0.8);   // giderek yavaşlar
+      }
+      const x = a.x + Math.sin(t * 2 + a.sal) * 3;
+      const ust = a.y0 - 10, alt = a.y0 + a.boy;
+      const gr2 = g.createLinearGradient(0, ust, 0, alt);
+      gr2.addColorStop(0, 'rgba(200,24,14,0.95)');
+      gr2.addColorStop(1, 'rgba(170,16,10,0.85)');
+      g.fillStyle = gr2;
+      g.beginPath();
+      g.moveTo(x - a.gen / 2, ust);
+      g.quadraticCurveTo(x - a.gen * 0.42, (ust + alt) / 2, x - a.gen * 0.3, alt);
+      g.arc(x, alt, a.gen * 0.42, Math.PI, 0, true);   // ucunda damla
+      g.quadraticCurveTo(x + a.gen * 0.42, (ust + alt) / 2, x + a.gen / 2, ust);
+      g.fill();
+      g.fillStyle = 'rgba(255,255,255,0.25)';
+      g.fillRect(x - a.gen * 0.2, ust, 2, a.boy * 0.8);
+    });
+    g.drawImage(ez, 0, 0);
+    if (t < 3.6) ekranaDomates.istek = requestAnimationFrame(ciz);
+    else {
+      // Akış bitti: yavaşça silinir
+      c.style.transition = 'opacity 1.4s';
+      c.style.opacity = '0';
+    }
+  };
+  ciz();
+}
+
 // Mumu sönmüş botlar ara sıra yaşayanlara domates atar (tek başına ya da oda sahibiyken)
 setInterval(() => {
   const d = ui.durum;
