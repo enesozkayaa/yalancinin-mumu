@@ -472,13 +472,39 @@ const Sahne = (() => {
     elim.add(avuc, parmak, kol);
     elim.visible = false;
     tabanca.add(elim);
-    tabancaMasaya(true);
+    tabanca.visible = false;
     sahne.add(tabanca);
   }
 
-  const MASA_TABANCA = { konum: V(0.3, MASA_Y + 0.035, 0.05), donus: new THREE.Euler(0, 0.6, Math.PI / 2) };
+  // Herkesin kendi tabancası masada, önünde (mumun öbür yanında) durur. Ceza alan kendi tabancasını
+  // alır: masadaki tabanca gizlenir, yerine hareket eden tabanca oradan kalkar, iş bitince geri konur.
+  let aktifTabancaNo = null;
+  function masaTabancasiYap(kt) {
+    const t = tabanca.clone();
+    t.children.slice(5).forEach(c => t.remove(c));   // flaş ve el kopyalanmasın
+    t.scale.setScalar(0.75);
+    const a = koltukAcisi(kt.koltuk);
+    const ileri = MASA_YARI - 0.3, yan = -0.6;
+    t.position.set(Math.sin(a) * ileri + Math.cos(a) * yan, MASA_Y + 0.035, Math.cos(a) * ileri - Math.sin(a) * yan);
+    t.rotation.set(0, a + Math.PI / 2 + 0.35, Math.PI / 2);
+    t.traverse(m => m.isMesh && (m.castShadow = true));
+    sahne.add(t);
+    kt.tabanca = t;
+  }
   function tabancaMasaya(hemen) {
-    hedefle(tabanca, MASA_TABANCA.konum, MASA_TABANCA.donus, hemen ? 0 : 0.8);
+    const kt = koltuklar.find(k => k.no === aktifTabancaNo);
+    aktifTabancaNo = null;
+    if (!kt?.tabanca || hemen) {
+      tabanca.visible = false;
+      koltuklar.forEach(k => k.tabanca && (k.tabanca.visible = true));
+      return;
+    }
+    hedefle(tabanca, kt.tabanca.position, kt.tabanca.rotation, 0.8);
+    setTimeout(() => {
+      if (aktifTabancaNo !== null) return;   // bu arada yine kullanıldı
+      tabanca.visible = false;
+      kt.tabanca.visible = true;
+    }, 850);
   }
 
   // ---------- Koltuklar ve karakterler ----------
@@ -491,7 +517,7 @@ const Sahne = (() => {
   // oyuncular: [{ no, karakter, ad }], ben: benim no
   function kur(oyuncular, ben) {
     benimNo = ben;
-    koltuklar.forEach(kt => { if (kt.k) sahne.remove(kt.k.kok); sahne.remove(kt.mumGrup); });
+    koltuklar.forEach(kt => { if (kt.k) sahne.remove(kt.k.kok); sahne.remove(kt.mumGrup); if (kt.tabanca) sahne.remove(kt.tabanca); });
     koltuklar = [];
     noKoltuk = {};
     const n = oyuncular.length;
@@ -514,6 +540,7 @@ const Sahne = (() => {
       const ileri = MASA_YARI - 0.25, yan = 0.75;
       kt.mumGrup.position.set(Math.sin(a) * ileri + Math.cos(a) * yan, MASA_Y, Math.cos(a) * ileri - Math.sin(a) * yan);
       sahne.add(kt.mumGrup);
+      masaTabancasiYap(kt);
       koltuklar.push(kt);
     });
     yiginiTemizle();
@@ -656,6 +683,13 @@ const Sahne = (() => {
   function tabancaKaldir(no) {
     const kt = koltuklar.find(k => k.no === no);
     if (!kt) return;
+    // Kendi masadaki tabancasını alır
+    aktifTabancaNo = no;
+    tabanca.position.copy(kt.tabanca.position);
+    tabanca.quaternion.copy(kt.tabanca.quaternion);
+    tabanca.userData.top.rotation.y = 0;
+    kt.tabanca.visible = false;
+    tabanca.visible = true;
     if (!kt.k) {
       // Birinci şahıs: kameraya göre yer (her karede kameraya bağlanır)
       tabanca.userData.bende = true;
