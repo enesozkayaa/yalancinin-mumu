@@ -484,9 +484,10 @@ const Sahne = (() => {
     t.children.slice(5).forEach(c => t.remove(c));   // flaş ve el kopyalanmasın
     t.scale.setScalar(0.75);
     const a = koltukAcisi(kt.koltuk);
-    const ileri = MASA_YARI - 0.3, yan = -0.6;
+    // Oyuncunun sağında (yan > 0 = o oyuncunun sağı), kabzası ona dönük, namlusu masanın ortasına
+    const ileri = MASA_YARI - 0.3, yan = 0.45;
     t.position.set(Math.sin(a) * ileri + Math.cos(a) * yan, MASA_Y + 0.035, Math.cos(a) * ileri - Math.sin(a) * yan);
-    t.rotation.set(0, a + Math.PI / 2 + 0.35, Math.PI / 2);
+    t.rotation.set(0, a + Math.PI + 0.5, Math.PI / 2);
     t.traverse(m => m.isMesh && (m.castShadow = true));
     sahne.add(t);
     kt.tabanca = t;
@@ -537,7 +538,8 @@ const Sahne = (() => {
       // Mum: oyuncunun önünde, masanın kenarına yakın, solunda
       kt.mumGrup = mumYap();
       const a = koltukAcisi(koltuk);
-      const ileri = MASA_YARI - 0.25, yan = 0.75;
+      // Mum oyuncunun solunda (tabanca sağında), yanındaki oyuncunun tabancasına da değmesin
+      const ileri = MASA_YARI - 0.27, yan = -0.6;
       kt.mumGrup.position.set(Math.sin(a) * ileri + Math.cos(a) * yan, MASA_Y, Math.cos(a) * ileri - Math.sin(a) * yan);
       sahne.add(kt.mumGrup);
       masaTabancasiYap(kt);
@@ -712,7 +714,7 @@ const Sahne = (() => {
     tabanca.userData.bas = tabanca.position.clone();
     // O taraftaki eli tabancayı tutar gibi kalksın
     k.tabancaTut = true;
-    k.tabancaKolu = yan > 0 ? 1 : 0;
+    k.tabancaKolu = 0;   // herkes tabancayı sağ eliyle alır
   }
 
   function tetikSonuc(no, oldu) {
