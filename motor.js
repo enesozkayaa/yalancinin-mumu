@@ -50,7 +50,13 @@ const Motor = (() => {
   };
   const dogruMu = kart => kart.tur === 'J' || kart.tur === o.masaKarti;
   const canlilar = () => o.oyuncular.filter(p => p.canli);
-  const olay = (tip, veri = {}) => dinleyici(tip, veri);
+  const olay = (tip, veri = {}) => {
+    try {
+      dinleyici(tip, veri);
+    } catch (e) {
+      console.error('Olay işlenirken hata:', tip, e);   // ekran hatası oyunu durdurmasın
+    }
+  };
 
   // ---------- Kurulum ----------
   // oyuncular: [{ ad, karakter, bot, kiyafet }], ayar: { ozel: ['durbun', ...] }
