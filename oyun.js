@@ -176,7 +176,7 @@ function olayGeldi(tip, v, d) {
     balon(v.no, laf);
     Sahne.konus(v.no, 1.1);
     if (v.no === ui.benimNo) { ui.secili.clear(); elCiz(); }
-    if (v.kalan === 0) setTimeout(() => mesaj(`${adi(v.no)} kartlarını bitirdi`, '', 1500), 600);
+    if (v.kalan === 0) setTimeout(() => mesaj(v.no === ui.benimNo ? 'Kartlarını bitirdin' : `${adi(v.no)} kartlarını bitirdi`, '', 1500), 600);
     const bakan = d.oyuncular.filter(x => x.bot && x.canli && x.no !== v.no);
     if (bakan.length && v.r > 0.4) {
       const b = bakan[Math.floor(v.r * 10) % bakan.length].no;
@@ -221,7 +221,7 @@ function olayGeldi(tip, v, d) {
     if (v.oldu) {
       Ses.bam();
       setTimeout(Ses.mum, 500);
-      mesaj(v.no === ui.benimNo ? 'BAM! Mumun söndü 🕯️' : `BAM! ${adi(v.no)}'in mumu söndü 🕯️`, 'iri kirmizi', 2400);
+      mesaj(v.no === ui.benimNo ? 'BAM! Mumun söndü 🕯️' : `BAM! 🕯️ ${adi(v.no)} öldü, mumu söndü`, 'iri kirmizi', 2400);
       if (v.no === ui.benimNo) {
         $('sahne').classList.add('olu');
         $('olumMenuBtn').textContent = online() ? '👀 İzlemeye devam' : '🏠 Ana menü';
@@ -251,15 +251,17 @@ function olayGeldi(tip, v, d) {
     if (v.tur === 'durbun') {
       const db = d.oyuncular[ui.benimNo].durbun;
       if (v.no === ui.benimNo && db) {
-        mesaj(`👀 Dürbün: ${adi(db.sonNo)}'in attığı ${db.adet} karttan biri ${Motor.AD[db.tur].toLocaleUpperCase('tr')}`, db.tur === 'J' || db.tur === d.masaKarti ? '' : 'kirmizi', 4000);
-        $('durbunKart').innerHTML = `<img src="${Sahne.kartResmi(db.tur)}" alt=""><small>👀 ${guvenli(adi(db.sonNo))}'in kartı</small>`;
+        mesaj(`👀 Dürbün: ${adi(db.sonNo)} ${db.adet} kart attı, biri ${Motor.AD[db.tur].toLocaleUpperCase('tr')}`, db.tur === 'J' || db.tur === d.masaKarti ? '' : 'kirmizi', 4000);
+        $('durbunKart').innerHTML = `<img src="${Sahne.kartResmi(db.tur)}" alt=""><small>👀 Kartı atan: ${guvenli(adi(db.sonNo))}</small>`;
         $('durbunKart').hidden = false;
       } else {
         balon(v.no, '👀 Dürbünle bakıyorum…');
         Sahne.ifade(v.no, 'supheli', 3);
       }
     } else {
-      mesaj(`${kim} ${k.emoji} ${k.ad} kullandı!${v.tur === 'ters' ? ' Sıra artık ters yönde.' : v.tur === 'pas' ? ' Sırayı geçti.' : v.tur === 'viski' ? ' Tabancası sıfırlandı.' : ''}`, '', 2600);
+      const ben = v.no === ui.benimNo;
+      const ek = v.tur === 'ters' ? ' Sıra artık ters yönde.' : v.tur === 'pas' ? (ben ? ' Sırayı geçtin.' : ' Sırayı geçti.') : v.tur === 'viski' ? (ben ? ' Tabancan sıfırlandı.' : ' Tabancası sıfırlandı.') : '';
+      mesaj(`${kim} ${k.emoji} ${k.ad} ${ben ? 'kullandın' : 'kullandı'}!${ek}`, '', 2600);
       if (v.no !== ui.benimNo) {
         balon(v.no, `${k.emoji} ${k.ad}!`);
         Sahne.tepki(v.no, v.tur === 'viski' ? 'rahat' : 'salla', 1.4);
