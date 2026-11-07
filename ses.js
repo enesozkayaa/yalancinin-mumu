@@ -270,6 +270,11 @@ const Ses = (() => {
     dagit: () => {
       for (let i = 0; i < 10; i++) hisirti(i * 0.06, 0.07, oyna(2200, 3400), 1, 0.16);
     },
+    // Dağıtımda tek kart: kısa kâğıt fışırtısı + masaya değme
+    tekKart: () => {
+      hisirti(0, 0.08, oyna(2600, 3600), 1, 0.13);
+      hisirti(0.33, 0.04, 1100, 1, 0.12);
+    },
     // "YALANCI!": dramatik vuruş + akor
     yalanci: () => {
       hisirti(0, 0.3, 120, 0.7, 0.9, 'lowpass');

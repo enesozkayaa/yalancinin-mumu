@@ -330,3 +330,8 @@ button:disabled { opacity: .55; cursor: default; }
   .istIzgara { grid-template-columns: repeat(3, 1fr); }
   .rozetler { grid-template-columns: 1fr; }
 }
+
+/* El başı: masa kartı yazısı ekranın ortasında (dönen kartın altında); üstteki rozet dağıtım bitince çıkar */
+#mesaj.orta { top: 64%; font-size: 44px; color: #ffd36a; letter-spacing: 2px; }
+#masaKarti.gizli { visibility: hidden; }
+@media (max-width: 600px) { #mesaj.orta { font-size: 32px; top: 58%; } }

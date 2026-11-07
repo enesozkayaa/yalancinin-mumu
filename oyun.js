@@ -78,6 +78,8 @@ function botlaBasla() {
 
 // Oyun ekranını aç ve sahneyi kur (tek başına, oda sahibi ve odaya katılan için ortak)
 function oyunEkraniniKur(d, benimNo) {
+  ui.dagitiliyor = false;
+  $('masaKarti').classList.remove('gizli');
   ui.benimNo = benimNo;
   ui.durum = d;
   ui.secili.clear();
@@ -121,12 +123,45 @@ function olayGeldi(tip, v, d) {
     Sahne.yiginiTemizle();
     $('acilan').hidden = true;
     ui.secili.clear();
-    Ses.dagit();
-    mesaj(`${masaAdi(v.masaKarti).toLocaleUpperCase('tr')} MASASI`, 'iri', 1800);
-    $('masaKarti').classList.remove('yeni');
-    void $('masaKarti').offsetWidth;
-    $('masaKarti').classList.add('yeni');
-    elCiz(true);
+    // Masa kartı önce ortada döner (yazısı da ortada), sonra kartlar sırası gelenden başlayarak 5'erli dağıtılır
+    mesaj(`${masaAdi(v.masaKarti).toLocaleUpperCase('tr')} MASASI`, 'iri orta', Motor.TANITIM);
+    $('masaKarti').classList.add('gizli');
+    const sirali = [];
+    const n = d.oyuncular.length;
+    for (let k = 0; k < n; k++) {
+      const p2 = d.oyuncular[(((v.sira + k * (v.yon || 1)) % n) + n) % n];
+      if (p2.canli) sirali.push(p2.no);
+    }
+    ui.dagitiliyor = true;
+    ui.gorunenKart = 0;
+    elCiz();
+    setTimeout(() => Ses.dagit(), Motor.TANITIM * 0.8);
+    const elNo = v.elNo;
+    Sahne.dagitimBasla(v.masaKarti, sirali, Motor.TANITIM, Motor.KART_ARA, Motor.EL_KART, no => {
+      if (ui.durum?.elNo !== elNo) return;
+      Ses.tekKart();
+      if (no === ui.benimNo) {
+        ui.gorunenKart++;
+        elCiz(true);
+      }
+      Sahne.kartSayilari(ui.durum.oyuncular);
+    }, dagitimBitti);
+    // Yedek: ekran çizilemediyse (telefon arka plandaydı vb.) süre dolunca dağıtımı bitir
+    setTimeout(() => {
+      if (ui.durum?.elNo !== elNo || !ui.dagitiliyor) return;
+      Sahne.dagitimBitir();
+      dagitimBitti();
+    }, (v.sure || 5000) + 300);
+    function dagitimBitti() {
+      if (ui.durum?.elNo !== elNo || !ui.dagitiliyor) return;
+      ui.dagitiliyor = false;
+      elCiz();
+      $('masaKarti').classList.remove('gizli');
+      $('masaKarti').classList.remove('yeni');
+      void $('masaKarti').offsetWidth;
+      $('masaKarti').classList.add('yeni');
+      ciz();
+    }
   } else if (tip === 'sira') {
     if (v.no === ui.benimNo) {
       Ses.siraSende();
@@ -475,13 +510,13 @@ function elCiz(yeni) {
   if (!ben?.el) return;
   // Elimde artık olmayan seçimleri bırak
   [...ui.secili].forEach(id => !ben.el.some(k => k.id === id) && ui.secili.delete(id));
-  ben.el.forEach((k, i) => {
+  // Dağıtım sürerken sadece gelen kartlar görünür; yeni gelen kart aşağıdan kayarak girer
+  const goster = ui.dagitiliyor ? ben.el.slice(0, ui.gorunenKart) : ben.el;
+  goster.forEach((k, i) => {
     const b = document.createElement('button');
-    b.className = 'elKart' + (ui.secili.has(k.id) ? ' secili' : '') + (yeni ? ' yeni' : '');
-    if (yeni) {
-      b.style.animationDelay = `${i * 0.08}s`;
-      setTimeout(() => b.classList.remove('yeni'), 900 + i * 80);
-    }
+    const yeniKart = yeni && (!ui.dagitiliyor || i === goster.length - 1);
+    b.className = 'elKart' + (ui.secili.has(k.id) ? ' secili' : '') + (yeniKart ? ' yeni' : '');
+    if (yeniKart) setTimeout(() => b.classList.remove('yeni'), 900);
     b.innerHTML = `<img src="${Sahne.kartResmi(k.tur)}" alt="${Motor.AD[k.tur]}">`;
     b.addEventListener('click', () => {
       if (ui.secili.has(k.id)) ui.secili.delete(k.id);

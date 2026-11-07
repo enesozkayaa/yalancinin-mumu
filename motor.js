@@ -33,6 +33,8 @@ const Motor = (() => {
   const EL_KART = 5;
   const SURE = 30;
   const BEKLE = { acilis: 2600, tetikHazir: 1400, tetik: 2700, sonra: 2600, dagit: 1200 };
+  // El başı: masa kartı ortada döner (TANITIM), sonra kartlar sırayla 5'erli dağıtılır (her kart KART_ARA)
+  const TANITIM = 2600, KART_ARA = 110;
 
   let o = null;
   let dinleyici = () => {};
@@ -79,7 +81,7 @@ const Motor = (() => {
 
   function elDagit(baslayan) {
     o.elNo++;
-    o.asama = 'oyun';
+    o.asama = 'dagitim';
     o.son = null;
     o.yigin = 0;
     o.iddiaToplam = 0;
@@ -96,17 +98,22 @@ const Motor = (() => {
       p.durbun = null;
     });
     o.sira = siradakiCanli(baslayan, true);
-    olay('el', { elNo: o.elNo, masaKarti: o.masaKarti, sira: o.sira });
+    const sure = TANITIM + canlilar().length * EL_KART * KART_ARA + 700;
+    olay('el', { elNo: o.elNo, masaKarti: o.masaKarti, sira: o.sira, yon: o.yon, sure });
     // Özel kart: ayaktakilerden birine (elinde 2'den az olan)
     if (o.ayar.ozel.length) {
       const adaylar = canlilar().filter(p => p.ozel.length < 2);
       if (adaylar.length) {
         const p = adaylar[rastgele(adaylar.length)];
         p.ozel.push(o.ayar.ozel[rastgele(o.ayar.ozel.length)]);
-        setTimeout(() => olay('ozelGeldi', { no: p.no }), 900);
+        setTimeout(() => olay('ozelGeldi', { no: p.no }), sure + 400);
       }
     }
-    siraBaslat();
+    // Tanıtım ve dağıtım bitince ilk sıra başlar
+    zamanlayici = setTimeout(() => {
+      o.asama = 'oyun';
+      siraBaslat();
+    }, sure);
   }
 
   // no'dan başlayarak sıranın yönünde (dahil ya da hariç) ayakta olan ilk oyuncu
@@ -356,7 +363,7 @@ const Motor = (() => {
   }
 
   return {
-    yeni, temizle, oyna, yalanci, ozelKullan, gorunum, botYap, AD, OZEL, SURE,
+    yeni, temizle, oyna, yalanci, ozelKullan, gorunum, botYap, AD, OZEL, SURE, TANITIM, KART_ARA, EL_KART,
     get aktif() { return !!o && o.asama !== 'bitti'; },
   };
 })();

@@ -547,6 +547,7 @@ const Sahne = (() => {
     });
     yiginiTemizle();
     efektleriTemizle();
+    dagitilan = null;
     tabancaMasaya(true);
     const benimOyuncu = oyuncular.find(p => p.no === ben);
     const benimKarakter = benimOyuncu?.karakter;
@@ -623,8 +624,106 @@ const Sahne = (() => {
   function kartSayilari(oyuncular) {
     oyuncular.forEach(p => {
       const kt = koltuklar.find(k => k.no === p.no);
-      if (kt?.k) Karakterler.kartlariAyarla(kt.k, p.canli ? p.kartSayisi : 0, sirtMalzeme);
+      // Dağıtım sürerken elinde sadece o ana kadar gelen kartlar görünür
+      const adet = dagitilan ? Math.min(p.kartSayisi, dagitilan[p.no] || 0) : p.kartSayisi;
+      if (kt?.k) Karakterler.kartlariAyarla(kt.k, p.canli ? adet : 0, sirtMalzeme);
     });
+  }
+
+  // ---------- El başı: masa kartı tanıtımı ve dağıtım ----------
+  // Masanın ortasında büyük masa kartı havada döner (herkes görsün), sonra küçülüp kaybolur.
+  // Ardından desteden kartlar sırası gelen oyuncudan başlayarak, her oyuncuya 5'er 5'er uçar.
+  let dagitilan = null, tanitimKarti = null, dagitimParcalari = [];
+  // Ekran çizilemediyse (telefon arka plandaydı vb.) süre dolunca dağıtım burada zorla bitirilir
+  function dagitimBitir() {
+    dagitilan = null;
+    dagitimParcalari.forEach(m => sahne.remove(m));
+    dagitimParcalari = [];
+    if (tanitimKarti) sahne.remove(tanitimKarti);
+    tanitimKarti = null;
+    for (let i = animler.length - 1; i >= 0; i--) if (animler[i].dagitim) animler.splice(i, 1);
+  }
+  function dagitimBasla(tur, sirali, tanitim, kartAra, elKart, kartGeldi, bitti) {
+    dagitimBitir();
+    dagitilan = {};
+    sirali.forEach(no => (dagitilan[no] = 0));
+    const ilkAnim = animler.length;
+    // Dönen büyük kart
+    if (tanitimKarti) sahne.remove(tanitimKarti);
+    const kenar = mat('#e8dcb8');
+    const on = mat('#ffffff', { map: kartDoku[tur], roughness: 0.5, emissive: '#ffffff', emissiveMap: kartDoku[tur], emissiveIntensity: 0.25 });
+    const arka = mat('#ffffff', { map: kartDoku.sirt, roughness: 0.5 });
+    const kart = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.68, 0.012), [kenar, kenar, kenar, kenar, on, on]);
+    const isik = new THREE.PointLight(0xffe0a0, 3, 2.5);
+    const grup = new THREE.Group();
+    grup.add(kart, isik);
+    grup.position.set(0, MASA_Y + 0.75, 0);
+    sahne.add(grup);
+    tanitimKarti = grup;
+    const t0 = tanitim / 1000;
+    animEkle(t0, (p, t) => {
+      const giris = Math.min(1, t / 0.35), cikis = Math.max(0, (p - 0.85) / 0.15);
+      grup.scale.setScalar((1 - Math.pow(1 - giris, 3)) * (1 - cikis));
+      grup.position.y = MASA_Y + 0.75 + Math.sin(t * 2.2) * 0.05 - cikis * 0.4;
+      kart.rotation.y = t * 3.2;    // her iki yüzde de masa kartı var: dönerken herkes görür
+      kart.rotation.z = Math.sin(t * 1.7) * 0.08;
+    }, () => {
+      sahne.remove(grup);
+      if (tanitimKarti === grup) tanitimKarti = null;
+    });
+    void arka;
+    // Ortadaki deste (dağıttıkça azalır)
+    const deste = new THREE.Group();
+    const toplam = sirali.length * elKart;
+    for (let i = 0; i < toplam; i++) {
+      const m = kartMesh(null);
+      m.position.y = i * 0.004;
+      m.rotation.y = (Math.random() - 0.5) * 0.08;
+      deste.add(m);
+    }
+    deste.position.set(0, MASA_Y + 0.003, 0);
+    deste.visible = false;
+    sahne.add(deste);
+    setTimeout(() => (deste.visible = true), tanitim * 0.85);
+    dagitimParcalari.push(grup, deste);
+    // Kartlar sırayla uçar
+    let sayac = 0;
+    sirali.forEach((no, pi) => {
+      const kt = koltuklar.find(k => k.no === no);
+      for (let i = 0; i < elKart; i++) {
+        const gecikme = (tanitim + (pi * elKart + i) * kartAra) / 1000;
+        const m = kartMesh(null);
+        m.visible = false;
+        sahne.add(m);
+        dagitimParcalari.push(m);
+        animEkle(0.42, p => {
+          if (!m.visible) {
+            m.visible = true;
+            const ust = deste.children.pop();
+            if (ust) deste.remove(ust);
+          }
+          const hedef = kt?.k ? kt.k.elKartlari.getWorldPosition(V()) : koltukKonumu(kt ? kt.koltuk : 0, 1.35, 1.25);
+          const bas = V(0, MASA_Y + 0.1, 0);
+          m.position.lerpVectors(bas, hedef, p);
+          m.position.y += Math.sin(Math.PI * p) * 0.35;
+          m.rotation.set(-0.3 * p, koltukAcisi(kt ? kt.koltuk : 0) + p * 6.3, 0);
+        }, () => {
+          sahne.remove(m);
+          dagitilan && (dagitilan[no] = (dagitilan[no] || 0) + 1);
+          kartGeldi(no);
+          if (++sayac === toplam) {
+            dagitilan = null;
+            sahne.remove(deste);
+            bitti();
+          }
+        }, gecikme);
+      }
+    });
+    animler.slice(ilkAnim).forEach(a => (a.dagitim = true));
+    if (!toplam) {
+      dagitilan = null;
+      bitti();
+    }
   }
 
   // no numaralı oyuncu adet kartı kapalı olarak ortaya atar
@@ -854,12 +953,13 @@ const Sahne = (() => {
 
   // ---------- Her kare ----------
   function kare() {
-    const dt = Math.min(0.1, saat.getDelta());
+    const hamDt = saat.getDelta();
+    const dt = Math.min(0.1, hamDt);
     const t = saat.elapsedTime;
-    // Animasyonlar
+    // Animasyonlar (dağıtım gerçek saate göre ilerler: yavaş cihazda da zamanında biter)
     for (let i = animler.length - 1; i >= 0; i--) {
       const a = animler[i];
-      a.t += dt;
+      a.t += a.dagitim ? Math.min(hamDt, 1) : dt;
       if (a.t < 0) continue;
       const p = Math.min(1, a.t / a.sure);
       a.adim(p, a.t);
@@ -1239,7 +1339,7 @@ const Sahne = (() => {
 
   return {
     domatesAt, terle, sinekEkle, efektleriTemizle, konusmaSeviyesi, konus, ifade, bakisUygula, olumleriUygula,
-    baslat, kur, kartSayilari, kartAt, kartlariAc, yiginiTemizle, tabancaKaldir, tetikSonuc, mumSondur,
+    dagitimBasla, dagitimBitir, baslat, kur, kartSayilari, kartAt, kartlariAc, yiginiTemizle, tabancaKaldir, tetikSonuc, mumSondur,
     bak, tepki, baktigim, ekranKonumu, kartResmi,
     set etiketGuncelle(f) { etiketGuncelle = f; },
     get bakis() { return bakis; },
