@@ -297,7 +297,7 @@ function domatesGoster(kimden, hedef) {
     setTimeout(() => mesaj(`🍅 ${adi(kimden)} sana domates attı!`, '', 2000), 750);
   }
 }
-// Ekrana yapışan domates: ezik domates (çekirdekli, parçalı, parlak) görüşü kapatır, suyu 3 sn boyunca
+// Ekrana yapışan domates: ezik domates (çekirdekli, parçalı, parlak) görüşü kapatır, suyu 2 sn boyunca
 // aşağı doğru akar, sonra yavaşça kaybolur.
 function ekranaDomates() {
   const c = $('domatesKanvas');
@@ -385,8 +385,8 @@ function ekranaDomates() {
     const t = (performance.now() - bas) / 1000;
     g.clearRect(0, 0, w, h);
     akintilar.forEach(a => {
-      if (t < 3.2) {
-        a.boy += a.hiz * (1 - t / 4) * (1 / 60) * (0.6 + Math.random() * 0.8);   // giderek yavaşlar
+      if (t < 2.2) {
+        a.boy += a.hiz * (1 - t / 3) * (1 / 60) * (0.6 + Math.random() * 0.8);   // giderek yavaşlar
       }
       const x = a.x + Math.sin(t * 2 + a.sal) * 3;
       const ust = a.y0 - 10, alt = a.y0 + a.boy;
@@ -404,7 +404,7 @@ function ekranaDomates() {
       g.fillRect(x - a.gen * 0.2, ust, 2, a.boy * 0.8);
     });
     g.drawImage(ez, 0, 0);
-    if (t < 3.6) ekranaDomates.istek = requestAnimationFrame(ciz);
+    if (t < 2.6) ekranaDomates.istek = requestAnimationFrame(ciz);
     else {
       // Akış bitti: yavaşça silinir
       c.style.transition = 'opacity 1.4s';
